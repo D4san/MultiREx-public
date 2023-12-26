@@ -63,7 +63,9 @@ trappist1 = mrex.Star(temperature=2566, radius=0.1192, mass=0.1192)
 systemtrappist1 = mrex.System(trappis1e, trappist1, distance_parsecs=12.42988,
                               planet_distance=0.02925, orbital_period=6.1010,
                               transit_time=0.9293/60/60)
+# Iniciar el modelo de transmision
 
+systemtrappist1.make_transmission_model()
 
 # Uso de explore_multiverse para generar datos
 systemtrappist1.explore_multiverse(wn_grid=wn_grid, snr=3, path=path, n_iter=10,
