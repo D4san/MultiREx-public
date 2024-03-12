@@ -44,7 +44,7 @@ class RndSNRInstrument(Instrument):
 
         noise = np.ones(spectrum.shape)*signal/self._SNR
 
-        specnoisi= spectrum+np.random.normal(-noise/ math.sqrt(num_observations),\
+        specnoisi= spectrum+np.random.normal(0,\
             noise/ math.sqrt(num_observations), noise.shape)
         return wngrid, specnoisi, \
             noise / math.sqrt(num_observations)
