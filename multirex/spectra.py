@@ -13,6 +13,7 @@ from taurex.cache import OpacityCache, CIACache
 from taurex.model import TransmissionModel
 from taurex.contributions import AbsorptionContribution, RayleighContribution
 from taurex.binning import FluxBinner, SimpleBinner  # Importa las bibliotecas de binner
+from multirex.__randinstrument import RndSNRInstrument
 import taurex.log
 taurex.log.disableLogging()
 from taurex.cache import OpacityCache,CIACache
@@ -1180,7 +1181,7 @@ class System:
             if path:
                 all_observations_df.to_parquet(f'{path}_observations.parquet')
             if spectra:
-                all_spectra_df=pd.concat([all_header_df,all_spectra_df], axis=1, ignore_index=True)
+                all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),all_spectra_df.reset_index(drop=True)], axis=1)
                 ## save the spectra
                 if path:
                     all_spectra_df.to_parquet(f'{path}_spectra.parquet')
@@ -1190,7 +1191,7 @@ class System:
         
         else:
             
-            all_spectra_df=pd.concat([all_header_df,all_spectra_df], axis=1,ignore_index=True)
+            all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),all_spectra_df.reset_index(drop=True)], axis=1)
             ## save the spectra
             if path:
                 all_spectra_df.to_parquet(f'{path}_spectra.parquet')
@@ -1201,6 +1202,4 @@ class System:
             
                     
                 
-               
-        
-  
+            
