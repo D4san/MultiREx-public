@@ -940,7 +940,7 @@ class System:
         
         return bin_wn, bin_rprs 
        
-    def generate_observations(self, wn_grid, snr, num_observations, path=None, header=False):
+    def generate_observations(self, wn_grid, snr, num_observations):
         """
         Generate observations with noise based on a wave number grid and save them optionally in a 
         specified format.
@@ -977,22 +977,13 @@ class System:
         columns = list(10000 / np.array(bin_wn))
         bin_rprs_reshaped = bin_rprs.reshape(1, -1)
         spec_df = pd.DataFrame(bin_rprs_reshaped, columns=columns)
-            
-        header_df = pd.DataFrame()    
-        # If header true, create a dataframe with the header
-        if header:
-            header_df = pd.DataFrame([self.get_params()])
         
         
         
         
         # Generate dataframe with noisy observations
-        observations = self.generate_df_noise(spec_df, snr, num_observations)  
+        observations = generate_df_noise(spec_df,pd.DataFrame(), snr, num_observations)  
         
-        # Save the observations
-        if path is not None:
-            # Including '.parquet' extension to the path
-            observations.to_parquet(f'{path}.parquet')
         
         return observations
 
