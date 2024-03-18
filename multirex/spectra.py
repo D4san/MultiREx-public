@@ -1079,7 +1079,8 @@ class System:
                     
 
 
-    def explore_multiverse(self, wn_grid, snr, n_iter, labels=None, header=False, n_observations=1, spectra=True, observations=True, path=False):
+    def explore_multiverse(self, wn_grid, snr, n_iter, labels=None, header=False,
+                           n_observations=1, spectra=True, observations=True, path=False):
         """
         Explore the multiverse, generate spectra and observations, and optionally save them in Parquet format.
 
