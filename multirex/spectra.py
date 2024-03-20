@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt  
 from tqdm import tqdm
 
 import taurex.log
@@ -15,7 +16,6 @@ from taurex.contributions import AbsorptionContribution, RayleighContribution
 from taurex.model import TransmissionModel
 from taurex.planet import Planet as tauP
 from taurex.stellar import PhoenixStar, BlackbodyStar
-from taurex.planet import Planet as tauP
 from taurex.temperature import Isothermal
 
 import multirex.utils as Util
@@ -42,7 +42,6 @@ def generate_value(value):
         return value
     
 
-
 def generate_df_noise(df_spectra, df_params, n_repeat, SNR, seed=None):
     """
     Generates a new DataFrame by applying Gaussian noise in a
@@ -60,48 +59,65 @@ def generate_df_noise(df_spectra, df_params, n_repeat, SNR, seed=None):
     - New DataFrame with noisy observations and the other columns 
         of information.
     """
+    if not isinstance(df_spectra, pd.DataFrame):
+        raise ValueError("df_spectra must be a pandas DataFrame.")
+    if not isinstance(df_params, pd.DataFrame):
+        raise ValueError("df_params must be a pandas DataFrame.")
+    if (not isinstance(n_repeat, int) or
+        n_repeat <= 0):
+        raise ValueError("n_repeat must be a positive integer.")
+    if (not isinstance(SNR, (int, float)) or
+        SNR <= 0):
+        raise ValueError("SNR must be a positive number.")
+    if (seed is not None and
+        (not isinstance(seed, int) or
+            seed < 0)):
+        raise ValueError("seed must be a non-negative integer.")
+
     if seed is not None:
         np.random.seed(seed)  
     
     # Replicate the spectra DataFrame according to the replication factor
-    df_spectra_replicated = pd.DataFrame(np.repeat(df_spectra.values, n_repeat, axis=0),
-                                         columns=df_spectra.columns
-                                         )
+    df_spectra_replicated = pd.DataFrame(
+        np.repeat(df_spectra.values, n_repeat, axis=0),
+        columns=df_spectra.columns
+        )
     
     # Calculate the signal and noise for each spectrum and replicate it
     signal_max = df_spectra.max(axis=1)
     signal_min = df_spectra.min(axis=1)
     signal_diff = signal_max - signal_min
     noise_per_spectra = signal_diff / SNR 
-    noise_replicated = np.repeat(noise_per_spectra.values[:, np.newaxis],
-                                 n_repeat,
-                                 axis=0
-                                 )
+    noise_replicated = np.repeat(
+        noise_per_spectra.values[:, np.newaxis],
+        n_repeat,
+        axis=0
+        )
     
     # apply gaussian noise vectorized
-    gaussian_noise = np.random.normal(0,
-                                      noise_replicated,
-                                      df_spectra_replicated.shape
-                                      )
+    gaussian_noise = np.random.normal(
+        0, noise_replicated, df_spectra_replicated.shape
+        )
     
     df_spectra_replicated += gaussian_noise
 
-    # Replicate the DataFrame of other parameters to match the number of rows of df_spectra_replicated
+    # Replicate the DataFrame of other parameters to match the number
+    # of rows of df_spectra_replicated
     
-    df_other_columns_replicated = pd.DataFrame(np.repeat(df_params.values,\
-                                                            n_repeat, axis=0),
-                                               columns=df_params.columns
-                                               )
+    df_other_columns_replicated = pd.DataFrame(
+        np.repeat(df_params.values,n_repeat, axis=0),
+        columns=df_params.columns
+        )
 
     # Insertar la columna SNR en el DataFrame replicado
     df_spectra_replicated.insert(0, 'SNR', SNR)
     
-
     # Concatenar los DataFrames
-    df_final = pd.concat([df_other_columns_replicated.reset_index(drop=True),\
-                            df_spectra_replicated.reset_index(drop=True)],
-                         axis=1
-                         )
+    df_final = pd.concat(
+        [df_other_columns_replicated.reset_index(drop=True),
+         df_spectra_replicated.reset_index(drop=True)],
+         axis=1
+         )
 
     return df_final
 
@@ -118,6 +134,7 @@ def wavenumber_grid(wl_min, wl_max, resolution):
     Returns:
     - np.array: Wave number grid in cm^-1.
     """
+
     return np.sort(10000 / np.logspace(np.log10(wl_min),
                                        np.log10(wl_max),
                                        resolution))
@@ -128,14 +145,15 @@ class Planet:
 
     Attributes:
     - seed (int): Random seed for reproducibility.
-    - radius (float or tuple): Radius of the planet (single value or range), in Earth radius.
-    - mass (float or tuple): Mass of the planet (single value or range), in Earth masses.
+    - radius (float or tuple): Radius of the planet in Earth radii (single value or range).
+    - mass (float or tuple): Mass of the planet in Earth masses (single value or range).
     - atmosphere (Atmosphere): An Atmosphere object.
     """
 
     def __init__(self, seed=None, radius=None, mass=None, atmosphere=None):
-        self._original_params = {"seed": seed, "radius": radius, "mass": mass, 
-                                 }
+        self._original_params = dict(
+            seed=seed, radius=radius, mass=mass
+        ) 
         self._seed = seed if seed is not None else int(time.time())
         np.random.seed(self._seed)
 
@@ -145,10 +163,7 @@ class Planet:
         if atmosphere is not None:
             self.set_atmosphere(atmosphere)
         else:
-            self._atmosphere = None
-     
-
-                
+            self._atmosphere = None     
 
     @property
     def original_params(self):
@@ -162,15 +177,18 @@ class Planet:
     
     def set_radius(self, value):
         """
-        Define the radius of the planet.
-        Args:
-        value (float or tuple): Radius of the planet (single value or range), in Earth radius.
+        Sets the radius of the planet.
+        Parameters:
+        value (float or tuple): Radius of the planet in Earth radii (single value or range).
         """
-        # validate value
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        # validations
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Radius values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Radius value must be positive.")
         
         self._radius = generate_value(value)
@@ -184,14 +202,17 @@ class Planet:
     def set_mass(self, value):
         """
         Define the mass of the planet.
-        Args:
-        value (float or tuple): Mass of the planet (single value or range), in Earth masses.
+        Parameters:
+        value (float or tuple): Mass of the planet in Earth masses (single value or range).
         """
-        # validate value
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        # validations
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Mass values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Mass value must be positive.")
         
         self._mass = generate_value(value)
@@ -217,10 +238,9 @@ class Planet:
         """
         Define the atmosphere of the planet.
         
-        Args:
+        Parameters:
         value (Atmosphere): An Atmosphere multirex object.
-        """
-        
+        """        
         # validate value is an Atmosphere object of multirex
         if value is not None and not isinstance(value, Atmosphere):
             raise ValueError("Atmosphere must be an Atmosphere object.")
@@ -234,11 +254,17 @@ class Planet:
         bool: True if all attributes are defined, False otherwise.
         """
         essential_attrs = ['_radius', '_mass', '_atmosphere']
-        missing_attrs = [attr for attr in essential_attrs if getattr(self, attr) is None]
+        missing_attrs = [
+            attr for attr in essential_attrs
+            if getattr(self, attr) is None
+            ]
+        
         if missing_attrs:
-            print("Planet Missing attributes:", [attr[1:] for attr in missing_attrs])
+            print("Planet Missing attributes:",
+                 [attr[1:] for attr in missing_attrs])
             return False
-        if self._atmosphere is not None and not self._atmosphere.validate():      
+        if (self._atmosphere is not None and
+            not self._atmosphere.validate()):      
             return False
         return True
         
@@ -249,20 +275,21 @@ class Planet:
         Returns:
         dict: A dictionary of the planet's parameters and its atmosphere's parameters.
         """
-        params = {
-            "p radius": self._radius,
-            "p mass": self._mass,
-            "p seed": self._seed
-        }
+        params = dict(
+            p_radius=self._radius,
+            p_mass=self._mass,
+            p_seed=self._seed
+        )
         if self.atmosphere is not None:
-   
             params.update(
-                {("atm "+i): self.atmosphere.get_params()[i] for i in self.atmosphere.get_params()}
+                {("atm "+i): self.atmosphere.get_params()[i] 
+                 for i in self.atmosphere.get_params()}
             )
-            #remove coposition and add as individual parameters
+            #remove composition and add as individual parameters
             params.pop("atm composition")
             params.update(
-                {("atm "+i): self.atmosphere.get_params()["composition"][i] for i in self.atmosphere.get_params()["composition"]}
+                {("atm "+i): self.atmosphere.get_params()["composition"][i]
+                 for i in self.atmosphere.get_params()["composition"]}
             )
         return params
 
@@ -277,31 +304,30 @@ class Planet:
         if atmosphere and self._atmosphere:
             self._atmosphere.move_universe()
 
+
 class Atmosphere:
     """
     Atmosphere class representing a planet's atmospheric properties.
 
-    Inputs:
+    Parameters:
     - seed (int): Random seed for reproducibility.
     - temperature (float or tuple): Temperature of the atmosphere (single value or range).
-    - base_pressure (float or tuple): Base pressure of the atmosphere (single value or range). In Pa
-    - top_pressure (float or tuple): Top pressure of the atmosphere (single value or range). In Pa
-    - composition (dict): Composition of the atmosphere with gases and mix ratios. (eg.{"H2O":-3, "CO2":[-2,-1]})
-    - fill_gas (str): Gas used as filler in the atmosphere composition.
+    - base_pressure (float or tuple): Base pressure of the atmosphere in Pa (single value or range).
+    - top_pressure (float or tuple): Top pressure of the atmosphere in Pa (single value or range).
+    - composition (dict): Composition of the atmosphere with gases and mix ratios in log10 values. (eg.{"H2O":-3, "CO2":[-2,-1]})
+    - fill_gas (str): Gas or list of gases used as filler in the atmosphere composition.
     """
-
     def __init__(self, seed=None, temperature=None, 
                  base_pressure=None, top_pressure=None, 
-                 composition=None, fill_gas=None):
-        
-        self._original_params = {
-            "seed": seed,
-            "temperature": temperature,
-            "base_pressure": base_pressure,
-            "top_pressure": top_pressure,
-            "composition": composition if composition is not None else {},
-            "fill_gas": fill_gas
-        }
+                 composition=None, fill_gas=None):        
+        self._original_params = dict(
+            seed=seed,
+            temperature=temperature,
+            base_pressure=base_pressure,
+            top_pressure=top_pressure,
+            composition=composition,
+            fill_gas=fill_gas
+        )
 
         self._seed = seed if seed is not None else int(time.time())
         np.random.seed(self._seed)
@@ -313,11 +339,8 @@ class Atmosphere:
         if composition is not None:
             self.set_composition(composition)
         else:
-            self._composition = {}
+            self._composition = dict()
             
-
-
-
     @property
     def original_params(self):
         """Gets the original values of the atmosphere's attributes."""
@@ -336,16 +359,23 @@ class Atmosphere:
     
     @property
     def temperature(self):
-        """Isothermal profile's temperature of the atmosphere (can be a single value or a range). In Kelvin."""
+        """ Gets the temperature of the atmosphere in K."""
         return self._temperature
 
-    def set_temperature(self, value):
-        
-        #validate
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+    def set_temperature(self, value):     
+        """
+        Sets the temperature of the atmosphere, as an isothermal profile.
+        Parameters:
+        value (float or tuple): Temperature of the atmosphere in K (single value or range).
+        """   
+        #validations
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Temperature values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+                value < 0):
             raise ValueError("Temperature value must be positive.")
         
         self._temperature = generate_value(value)
@@ -353,69 +383,91 @@ class Atmosphere:
 
     @property
     def base_pressure(self):
-        """Base pressure of the atmosphere (can be a single value or a range). In Pa."""
+        """Gets the base pressure of the atmosphere in Pa"""
         return self._base_pressure
 
     def set_base_pressure(self, value):
-
-        #validate
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        """
+        Sets the base pressure of the atmosphere.
+        Parameters:
+        value (float or tuple): Base pressure of the atmosphere in Pa (single value or range).
+        """
+        #validations
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Base pressure values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Base pressure value must be positive.")
             # validate if top pressure is smaller than base pressure
-        if self._top_pressure is not None and value < self._top_pressure:
+        if (self._top_pressure is not None
+            and value < self._top_pressure):
             raise ValueError("Base pressure must be greater than top pressure.")
-        
         
         self._base_pressure = generate_value(value)
         self._original_params["base_pressure"] = value
 
     @property
     def top_pressure(self):
-        """Top pressure of the atmosphere (can be a single value or a range). in Pa."""
+        """Gets the top pressure of the atmosphere in Pa."""
         return self._top_pressure
 
-
-    def set_top_pressure(self, value):
-        
-        # validate 
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+    def set_top_pressure(self, value):        
+        """
+        Sets the top pressure of the atmosphere.
+        Parameters:
+        value (float or tuple): Top pressure of the atmosphere in Pa (single value or range).
+        """
+        # validations 
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Top pressure values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
-            raise ValueError("Top pressure value must be positive.")
-        
-            # validate if top pressure is smaller than base pressure
-        if self._base_pressure is not None and value > self._base_pressure:
+        elif (isinstance(value, (int, float))
+              and value < 0):
+            raise ValueError("Top pressure value must be positive.")        
+        if (self._base_pressure is not None
+            and value > self._base_pressure):
             raise ValueError("Top pressure must be smaller than base pressure.")
-        
-        
+                
         self._top_pressure = generate_value(value)
         self._original_params["top_pressure"] = value
 
     @property
     def composition(self):
-        """Composition of the atmosphere. A dictionary with gases and log10 mix ratios in a single value or a range
-        represented as a tuple. E.g. {"H2O": -3, "CO2": [-2, -1]}."""
+        """
+        Gets the composition of the atmosphere.
+        For each gas, the mix ratio is given in log10.
+        """
         return self._composition
 
-
     def set_composition(self, gases):
-        self._composition = {}
+        """
+        Sets the composition of the atmosphere.
+        Parameters:
+        gases (dict): Composition of the atmosphere with gases and mix ratios in log10 values. 
+        (eg.{"H2O":  -3, "CO2": [-2,-1]})
+        """
+        self._composition = dict()
         for gas, mix_ratio in gases.items():
             self.add_gas(gas, mix_ratio)
-            
         self.validate_composition()
 
     @property
     def fill_gas(self):
-        """Fill gas or gases used in the atmosphere composition.
-        E.g. "N2" or ["N2", "He"]. """
+        """ Gets the filler gas of the atmosphere."""
         return self._fill_gas
 
     def set_fill_gas(self, gas):
+        """
+        Sets the filler gas of the atmosphere.
+        Parameters:
+        gas (str or list): Gas or list of gases used
+          as filler in the atmosphere composition.
+        """
         self._fill_gas = gas
         self._original_params["fill_gas"] = gas
 
@@ -423,10 +475,18 @@ class Atmosphere:
         """
         Adds a gas to the atmosphere composition with a log10 mix ratio.
         If the gas already exists, its value is updated.
+        Parameters:
+        gas (str): Gas name.
+        mix_ratio (float or tuple): Mix ratio of the gas in log10.
         """
         if gas in self._composition:
             old_value = self._composition[gas]
-            print(f"{gas} already exists in the composition. Its old value was {old_value}. It will be updated to {mix_ratio}.")
+            print((
+                f"{gas} already exists in the composition. "
+                f"Its old value was {old_value}. "
+                f"It will be updated to {mix_ratio}."
+                ))
+            
         self._composition[gas] = generate_value(mix_ratio)
         self._original_params["composition"][gas] = mix_ratio
         self.validate_composition()
@@ -434,9 +494,14 @@ class Atmosphere:
     def remove_gas(self, gas):
         """
         Removes a gas from the atmosphere composition.
+        Parameters:
+        gas (str): Gas name.
         """
         if gas not in self._composition:
-            print(f"{gas} does not exist in the composition. No action will be taken.")
+            print((
+                f"{gas} does not exist in the composition. "
+                f"No action will be taken."
+                ))
             return
         del self._composition[gas]
         del self._original_params["composition"][gas]
@@ -448,21 +513,23 @@ class Atmosphere:
         """
         total_mix_ratio = sum(10**mix for mix in self._composition.values())
         
-        if total_mix_ratio > 1 or total_mix_ratio < 0:
-            raise ValueError(f"The sum of mix ratios must be between 0 and 1. Actual value: {total_mix_ratio}")
+        if (total_mix_ratio > 1 or
+            total_mix_ratio < 0):
+            raise ValueError((f"The sum of mix ratios must be between 0 and 1."
+                              f" Actual value: {total_mix_ratio}"))
 
     def get_params(self):
         """
         Returns the current parameters of the atmosphere.
         """
-        return {
-            "temperature": self._temperature,
-            "base_pressure": self._base_pressure,
-            "top_pressure": self._top_pressure,
-            "composition": self._composition,
-            "fill_gas": self._fill_gas,
-            "seed": self._seed
-        }
+        return dict(
+            atm_temperature=self._temperature,
+            atm_base_pressure=self._base_pressure,
+            atm_top_pressure=self._top_pressure,
+            atm_composition=self._composition,
+            atm_fill_gas=self._fill_gas,
+            atm_seed=self._seed
+        )
 
     def move_universe(self):
         """
@@ -480,23 +547,31 @@ class Atmosphere:
         """
         Validates the atmosphere's essential properties are defined, allowing for an undefined composition if fill_gas is present.
         """
-        essential_attrs = ['_temperature', '_base_pressure', '_top_pressure', '_fill_gas']
-        
-        missing_attrs = [attr for attr in essential_attrs if getattr(self, attr) is None]
+        essential_attrs = [
+            '_temperature', '_base_pressure', 
+            '_top_pressure', '_fill_gas'
+            ]        
+        missing_attrs = [
+            attr for attr in essential_attrs 
+            if getattr(self, attr) is None
+            ]
         if missing_attrs:
-            print("Atmosphere Missing attributes:", [attr[1:] for attr in missing_attrs])
+            print("Atmosphere Missing attributes:",
+                  [attr[1:] for attr in missing_attrs])
             return False
 
         #valid ranges for temperature, base_pressure, and top_pressure
         if not all([
-            isinstance(self._temperature, (int, float)) and self._temperature > 0,
-            isinstance(self._base_pressure, (int, float)) and self._base_pressure > 0,
-            isinstance(self._top_pressure, (int, float)) and self._top_pressure > 0,
+            (isinstance(self._temperature, (int, float))
+                and self._temperature > 0),
+            (isinstance(self._base_pressure, (int, float))
+                and self._base_pressure > 0),
+            (isinstance(self._top_pressure, (int, float))
+                and self._top_pressure > 0),
             self._base_pressure > self._top_pressure]):
             print("Atmosphere has invalid attribute values.")
             return False
         return True
-
 
 
 class Star:
