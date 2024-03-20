@@ -1,29 +1,31 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import json
+import math
 import os
+import time
+
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import time
-import math
-import multirex.utils as Util
 
-#Taurex imports
+import taurex.log
+from taurex.binning import FluxBinner, SimpleBinner
+from taurex.cache import OpacityCache, CIACache
+from taurex.chemistry import TaurexChemistry, ConstantGas
+from taurex.contributions import AbsorptionContribution, RayleighContribution
+from taurex.model import TransmissionModel
+from taurex.planet import Planet as tauP
 from taurex.stellar import PhoenixStar, BlackbodyStar
 from taurex.planet import Planet as tauP
 from taurex.temperature import Isothermal
-from taurex.chemistry import TaurexChemistry, ConstantGas
-from taurex.cache import OpacityCache, CIACache
-from taurex.model import TransmissionModel
-from taurex.contributions import AbsorptionContribution, RayleighContribution
-from taurex.binning import FluxBinner, SimpleBinner  # Importa las bibliotecas de binner
-import taurex.log
-taurex.log.disableLogging()
-from taurex.cache import OpacityCache,CIACache
-OpacityCache().clear_cache()
-xsec_path=os.path.join(os.path.dirname(__file__),'data')
-OpacityCache().set_opacity_path(xsec_path)
 
+import multirex.utils as Util
+
+taurex.log.disableLogging()
+
+# Predefine the opacity path with the data included in the package
+OpacityCache().clear_cache()
+xsec_path = os.path.join(os.path.dirname(__file__), 'data')
+OpacityCache().set_opacity_path(xsec_path)
 
 
 def generate_value(value):
