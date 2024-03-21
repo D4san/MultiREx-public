@@ -109,8 +109,10 @@ def generate_df_noise(df_spectra, df_params, n_repeat, SNR, seed=None):
         columns=df_params.columns
         )
 
-    # Insertar la columna SNR en el DataFrame replicado
+    # insert SNR replicated dataframe to the spectra dataframe
     df_spectra_replicated.insert(0, 'SNR', SNR)
+    # insert noise replicated dataframe to the spectra dataframe
+    df_spectra_replicated.insert(1, 'noise', noise_replicated.flatten())
     
     # Concatenar los DataFrames
     df_final = pd.concat(
@@ -141,7 +143,7 @@ def wavenumber_grid(wl_min, wl_max, resolution):
 
 class Planet:
     """
-    Planet class representing a rocky exoplanet.
+    Represents a planet with specified properties and an optional atmosphere.
 
     Attributes:
     - seed (int): Random seed for reproducibility.
@@ -167,12 +169,10 @@ class Planet:
 
     @property
     def original_params(self):
-        """Gets the original values of the planet's attributes."""
         return self._original_params
         
     @property
     def radius(self):
-        """Gets the radius of the planet."""
         return self._radius
     
     def set_radius(self, value):
@@ -196,7 +196,6 @@ class Planet:
 
     @property
     def mass(self):
-        """Gets the mass of the planet."""
         return self._mass
 
     def set_mass(self, value):
@@ -220,7 +219,6 @@ class Planet:
 
     @property
     def seed(self):
-        """Gets the seed used for randomness."""
         return self._seed
 
     def set_seed(self, value):
@@ -231,7 +229,6 @@ class Planet:
 
     @property
     def atmosphere(self):
-        """Gets the atmosphere of the planet."""
         return self._atmosphere
 
     def set_atmosphere(self, value):
@@ -276,9 +273,9 @@ class Planet:
         dict: A dictionary of the planet's parameters and its atmosphere's parameters.
         """
         params = dict(
-            p_radius=self._radius,
-            p_mass=self._mass,
-            p_seed=self._seed
+            p_radius = self._radius,
+            p_mass = self._mass,
+            p_seed = self._seed
         )
         if self.atmosphere is not None:
             params.update(
@@ -307,9 +304,9 @@ class Planet:
 
 class Atmosphere:
     """
-    Atmosphere class representing a planet's atmospheric properties.
+    Represents a plane parallel atmosphere with specified properties and composition. 
 
-    Parameters:
+    Atributes:
     - seed (int): Random seed for reproducibility.
     - temperature (float or tuple): Temperature of the atmosphere (single value or range).
     - base_pressure (float or tuple): Base pressure of the atmosphere in Pa (single value or range).
@@ -321,12 +318,12 @@ class Atmosphere:
                  base_pressure=None, top_pressure=None, 
                  composition=None, fill_gas=None):        
         self._original_params = dict(
-            seed=seed,
-            temperature=temperature,
-            base_pressure=base_pressure,
-            top_pressure=top_pressure,
-            composition=composition,
-            fill_gas=fill_gas
+            seed = seed,
+            temperature = temperature,
+            base_pressure = base_pressure,
+            top_pressure = top_pressure,
+            composition=  composition if composition is not None else dict(),
+            fill_gas = fill_gas
         )
 
         self._seed = seed if seed is not None else int(time.time())
@@ -343,12 +340,10 @@ class Atmosphere:
             
     @property
     def original_params(self):
-        """Gets the original values of the atmosphere's attributes."""
         return self._original_params
 
     @property
     def seed(self):
-        """Gets the seed used for randomness."""
         return self._seed
     
     def set_seed(self, value):
@@ -359,7 +354,6 @@ class Atmosphere:
     
     @property
     def temperature(self):
-        """ Gets the temperature of the atmosphere in K."""
         return self._temperature
 
     def set_temperature(self, value):     
@@ -383,7 +377,6 @@ class Atmosphere:
 
     @property
     def base_pressure(self):
-        """Gets the base pressure of the atmosphere in Pa"""
         return self._base_pressure
 
     def set_base_pressure(self, value):
@@ -411,7 +404,6 @@ class Atmosphere:
 
     @property
     def top_pressure(self):
-        """Gets the top pressure of the atmosphere in Pa."""
         return self._top_pressure
 
     def set_top_pressure(self, value):        
@@ -438,10 +430,6 @@ class Atmosphere:
 
     @property
     def composition(self):
-        """
-        Gets the composition of the atmosphere.
-        For each gas, the mix ratio is given in log10.
-        """
         return self._composition
 
     def set_composition(self, gases):
@@ -458,7 +446,6 @@ class Atmosphere:
 
     @property
     def fill_gas(self):
-        """ Gets the filler gas of the atmosphere."""
         return self._fill_gas
 
     def set_fill_gas(self, gas):
@@ -523,17 +510,17 @@ class Atmosphere:
         Returns the current parameters of the atmosphere.
         """
         return dict(
-            atm_temperature=self._temperature,
-            atm_base_pressure=self._base_pressure,
-            atm_top_pressure=self._top_pressure,
-            atm_composition=self._composition,
-            atm_fill_gas=self._fill_gas,
-            atm_seed=self._seed
+            temperature = self._temperature,
+            base_pressure = self._base_pressure,
+            top_pressure = self._top_pressure,
+            composition = self._composition,
+            fill_gas = self._fill_gas,
+            seed = self._seed
         )
 
     def move_universe(self):
         """
-        Regenerates the atmosphere based on original or new random values.
+        Regenerates the atmosphere based on original values or range of values.
         """
         self._seed = self._original_params.get("seed", int(time.time()))
         np.random.seed(self._seed)
@@ -568,7 +555,8 @@ class Atmosphere:
                 and self._base_pressure > 0),
             (isinstance(self._top_pressure, (int, float))
                 and self._top_pressure > 0),
-            self._base_pressure > self._top_pressure]):
+            self._base_pressure > self._top_pressure
+            ]):
             print("Atmosphere has invalid attribute values.")
             return False
         return True
@@ -583,17 +571,22 @@ class Star:
         temperature (float or tuple): Temperature of the star in Kelvin, can be a single value or a range.
         radius (float or tuple): Radius of the star in solar radii, can be a single value or a range.
         mass (float or tuple): Mass of the star in solar masses, can be a single value or a range.
-        phoenix_path (str): Path to the Phoenix model files. If None, a blackbody star is used,
-            in the case of a path, a Phoenix star model are used, you must be the phoenix files in the
-            format who is in the documentation of Taurex.
+        phoenix_path (str): Path to the Phoenix model files. This parameter automates the management
+            of Phoenix model files. Providing a path that lacks a 'Phoenix' folder prompts the automatic
+            download of necessary model files into a newly created 'Phoenix' folder at the specified path.
+            An empty string ("") uses the current working directory for this purpose. This feature removes
+            the need for manual file handling by the user.
     """
-    def __init__(self, seed=None, temperature=None, radius=None, mass=None,phoenix_path=None):
-        self._original_params = {
-            "seed": seed, 
-            "temperature": temperature, 
-            "radius": radius, 
-            "mass": mass
-        }
+    def __init__(self, seed=None, temperature=None,
+                 radius=None, mass=None,phoenix_path=None):
+        
+        self._original_params = dict(
+            seed=seed,
+            temperature=temperature,
+            radius=radius,
+            mass=mass
+        )
+        
         self._seed = seed if seed is not None else int(time.time())
         np.random.seed(self._seed)
 
@@ -611,7 +604,6 @@ class Star:
             self._original_params["phoenix"]=self.phoenix
             
         
-
     @property
     def seed(self):
         return self._seed
@@ -619,7 +611,7 @@ class Star:
     def set_seed(self, value):
         """
         Sets the seed used for randomness and reproducibility.
-        Args:
+        Parameters:
             value (int): Seed value.
         """
         self._seed = value
@@ -632,16 +624,18 @@ class Star:
 
     def set_temperature(self, value):
         """
-        Sets the star's temperature. Can be a single value or a range for random generation.
-        Args:
+        Sets the star's temperature. 
+        Parameters:
             value (float or tuple): Temperature in Kelvin.
-        """
-        
-        # validate 
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        """        
+        # validation 
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Temperature values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Temperature value must be positive.")
         
         self._temperature = generate_value(value)
@@ -654,15 +648,17 @@ class Star:
     def set_radius(self, value):
         """
         Sets the star's radius. Can be a single value or a range for random generation.
-        Args:
+        Parameters:
             value (float or tuple): Radius in solar radii.
-        """
-        
-        # validate 
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        """        
+        # validation 
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0
+                or value[1] < 0):
                 raise ValueError("Radius values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Radius value must be positive.")
         
         self._radius = generate_value(value)
@@ -675,14 +671,17 @@ class Star:
     def set_mass(self, value):
         """
         Sets the star's mass. Can be a single value or a range for random generation.
-        Args:
+        Parameters:
             value (float or tuple): Mass in solar masses.
         """
         # validate     
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        if (isinstance(value, tuple) and
+            len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Mass values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Mass value must be positive.")  
               
         self._mass = generate_value(value)
@@ -715,14 +714,12 @@ class Star:
         """
         Validates that all essential attributes of the star are defined.
 
-        This method checks if the essential properties (temperature, radius, and mass) of the star are not None.
-        Additionally, it checks if the values are within reasonable ranges for a celestial star, if applicable.
-
         Returns:
             bool: True if all essential attributes are defined and valid, False otherwise.
         """
         essential_attrs = ['_temperature', '_radius', '_mass']
-        missing_attrs = [attr for attr in essential_attrs if getattr(self, attr) is None]
+        missing_attrs = [attr for attr in essential_attrs 
+                         if getattr(self, attr) is None]
 
         if missing_attrs:
             print("Star is missing essential attributes:", [attr[1:] for attr in missing_attrs])
@@ -743,10 +740,11 @@ class System:
     """
 
     def __init__(self, planet, star,seed=None, sma=None):
-        self._original_params = {
-        "seed": seed,
-        "sma": sma}
-            
+        self._original_params = dict(
+            seed=seed,
+            sma=sma
+        )
+        
         self._seed = seed if seed is not None else int(time.time())
         np.random.seed(self._seed)
 
@@ -754,17 +752,15 @@ class System:
         self.set_star(star)            
         self.set_sma(sma)
         
-        self._transmission=None
+        self._transmission=None     # transmission model
         
 
     @property
     def original_params(self):
-        """Gets the original values of the system's attributes."""
         return self._original_params
     
     @property
     def seed(self):
-        """Gets the seed used for randomness."""
         return self._seed
     
     def set_seed(self, value):
@@ -775,23 +771,22 @@ class System:
         
     @property
     def planet(self):
-        """Gets the planet of the system."""
         return self._planet
     
     def set_planet(self, value):
         """
         Define the planet of the system.
-        Args:
+        Parameters:
         value (Planet): A Planet object of multirex.
         """
-        # validate value
-        if value is not None and not isinstance(value, Planet):
+        # validation
+        if (value is not None and
+            not isinstance(value, Planet)):
             raise ValueError("Planet must be a Planet object.")
         self._planet = value
         
     @property
     def star(self):
-        """Gets the star of the system."""
         return self._star
     
     def set_star(self, value):
@@ -801,13 +796,13 @@ class System:
         value (Star): A Star object of multirex.
         """
         # validate value
-        if value is not None and not isinstance(value, Star):
+        if (value is not None and
+            not isinstance(value, Star)):
             raise ValueError("Star must be a Star object.")
         self._star = value
         
     @property
     def sma(self):
-        """Gets the semi-major axis of the planet's orbit in AU."""
         return self._sma
     
     def set_sma(self, value):
@@ -817,10 +812,13 @@ class System:
         value (float or tuple): Semi-major axis of the planet's orbit in AU (single value or range).
         """
         # validate value
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] < 0 or value[1] < 0:
+        if (isinstance(value, tuple)
+            and len(value) == 2):
+            if (value[0] < 0 or
+                value[1] < 0):
                 raise ValueError("Semi-major axis values must be positive")
-        elif isinstance(value, (int, float)) and value < 0:
+        elif (isinstance(value, (int, float)) and
+              value < 0):
             raise ValueError("Semi-major axis value must be positive.")
         
         self._sma = generate_value(value)
@@ -833,14 +831,9 @@ class System:
         params = {
             "sma": self._sma,
             "seed": self._seed
-        }
-        
-        params.update(
-            {(i): self.planet.get_params()[i] for i in self.planet.get_params()}
-        )
-        params.update(
-            {(i): self.star.get_params()[i] for i in self.star.get_params()}
-        )
+        }        
+        params.update(self.planet.get_params())
+        params.update(self.star.get_params())
         return params
     
     def validate(self):
@@ -851,9 +844,11 @@ class System:
         bool: True if all essential attributes are defined, False otherwise.
         """
         essential_attrs = ['_sma']
-        missing_attrs = [attr for attr in essential_attrs if getattr(self, attr) is None]
+        missing_attrs = [attr for attr in essential_attrs 
+                         if getattr(self, attr) is None]
         if missing_attrs:
-            print("System is missing essential attributes:", [attr[1:] for attr in missing_attrs])
+            print("System is missing essential attributes:",
+                  [attr[1:] for attr in missing_attrs])
             return False
         
         #validate planet and star
@@ -865,14 +860,13 @@ class System:
             print("System configuration error: The star configuration is invalid.")
             return False
         return True
-    
-
 
     def move_universe(self):
         """
         Regenerates the system's attributes using the original values.
         """
-        self._seed = self._original_params.get("seed", int(time.time()))
+        self._seed = self._original_params.get("seed",
+                                               int(time.time()))
                  
         np.random.seed(self._seed)
         self.set_sma(self.original_params["sma"])
@@ -886,15 +880,12 @@ class System:
         It is a necessary step to generate a transmission model
         before generating a spectrum, and if you make a change in the system 
         you need to generate a new transmission model.
-
-        """ 
- 
+        """  
         #check if the system is valid
         if not self.validate():
             print("System is not valid. A transmission model cannot be generated.")
             return
-        
-        
+                
         from astropy.constants import M_jup, M_earth, R_jup, R_earth
         #convert mass and radius to jupiter and earth units
         rconv= R_jup.value/R_earth.value
@@ -902,13 +893,11 @@ class System:
         
         # Taurex planet
         tauplanet=tauP(planet_distance=self.sma,
-                    planet_mass=self.planet.mass/mconv,
-                    planet_radius=self.planet.radius/rconv,
+                    planet_mass=self.planet.mass / mconv,
+                    planet_radius=self.planet.radius / rconv,
                     )
-        
-        
-        #Taurex star
-        
+                
+        #Taurex star        
         if self.star.phoenix:
             taustar=PhoenixStar(temperature=self.star.temperature,
                             radius=self.star.radius,
@@ -917,8 +906,7 @@ class System:
         else:
             taustar=BlackbodyStar(temperature=self.star.temperature,
                             radius=self.star.radius,
-                            mass=self.star.mass)
-        
+                            mass=self.star.mass)        
         
         # Taurex temperature model
         tautemperature=Isothermal(T=self.planet.atmosphere.temperature)
@@ -948,10 +936,7 @@ class System:
         
     @property
     def transmission(self):
-        """
-        Get the transmission model of the system.
-        
-        """
+        """ Get the transmission model of the system."""
         return self._transmission
     
     
@@ -959,10 +944,10 @@ class System:
         """
         Generate a spectrum based on a wave number grid.
 
-        Args:
-        - wave_numbers (array): Wave number grid.
+        Parameters:
+        - wn_grid (array): Wave number grid.
 
-        Output:
+        Returns:
         - bin_wn (array): Wave number grid.
         - bin_rprs (array): Fluxes in rp^2/rs^2.
         """
@@ -970,20 +955,23 @@ class System:
         if self._transmission is None:
             print("A transmission model has not been generated.")
             return
-        
                 
         # Create a binner
         bn = FluxBinner(wngrid=wn_grid)
         # Generate the spectrum
-        bin_wn, bin_rprs, _, _ = bn.bin_model(\
+        bin_wn, bin_rprs, _, _ = bn.bin_model(
             self.transmission.model(wngrid=wn_grid))
                 
         return bin_wn, bin_rprs
     
-    def generate_full_spectrum(self, wn_grid):
+    def generate_contributions(self, wn_grid):
         """
-        generate a diferentiated spectrum contribution based on a wave number grid.
+        generate a differentiated spectrum contribution based on a wave number grid.
         
+        Parameters:
+        wn_grid (array): Wave number grid.
+        
+        Returns:
         bin_wn (array): Wave number grid.
         bin_rprs (dict): Fluxes in rp^2/rs^2 per contribution and molecule.
         """
@@ -1007,35 +995,28 @@ class System:
                 chem = [model[1][aporte][j][i] for i in range(1, 4)]
                 contrib = [model[0], chem[0], chem[1], chem[2]]
                 bin_wn, bin_rprs[aporte][model[1][aporte][j][0]], _, _ \
-                    = bn.bin_model(contrib)
-                
+                    = bn.bin_model(contrib)               
         
         return bin_wn, bin_rprs 
        
-    def generate_observations(self, wn_grid, snr, num_observations):
+    def generate_observations(self, wn_grid, snr, n_observations):
         """
         Generate observations with noise based on a wave number grid and save them optionally in a 
         specified format.
 
-        Args:
+        Parameters:
         - wn_grid (array): Wave number grid, defining the wavelengths at which the 
         observations are made.
         - snr (float): Signal-to-noise ratio, used to determine the level of noise
         added to the observations.
-        - num_observations (int): Number of noisy observations to generate.
-        - path (str, optional): Path where the observations should be saved in a parquet format.
-    
+        - n_observations (int): Number of noisy observations to generate.    
 
         Returns:
-        DataFrame: A pandas DataFrame containing the observations with added noise. The DataFrame 
-        includes:
+        DataFrame: Observations with added noise. Includes:
             - Columns labeled with the wavelengths (from `wn_grid`) containing the fluxes 
                 in rp^2/rs^2 with added noise.
-            - A 'SNR' column indicating the signal-to-noise ratio used for each observation.
-            - A 'noise' column showing the noise level added to the fluxes.
-            - If `header` is True, additional columns will include parameters of the system
-                , providing metadata about each observation.
-
+            - 'SNR' column indicating the signal-to-noise ratio used for each observation.
+            - 'noise' column showing the noise level added to the fluxes.
         """
         
         # Validate the transmission model
@@ -1050,22 +1031,17 @@ class System:
         bin_rprs_reshaped = bin_rprs.reshape(1, -1)
         spec_df = pd.DataFrame(bin_rprs_reshaped, columns=columns)
         
-        
-        
-        
         # Generate dataframe with noisy observations
-        observations = generate_df_noise(spec_df,pd.DataFrame(), snr, num_observations)  
-        
+        observations = generate_df_noise(spec_df,pd.DataFrame(), snr, n_observations)  
         
         return observations
 
-
-    ## plots 
+    # plots 
     def plot_spectrum(self,  wn_grid, showfig=False):
         """
         Plot the spectrum.
         
-        Args:
+        Parameters:
         - wn_grid (array): Wave number grid (in cm-1).
         - showfig (bool): Whether to show the plot (optional).
         
@@ -1073,8 +1049,7 @@ class System:
         - fig (matplotlib.figure): Figure of the plot.
         - ax (matplotlib.axes): Axes of the plot.
 
-        """
-                     
+        """                     
         spectrum=self.generate_spectrum(wn_grid)
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(10000/spectrum[0], spectrum[1])
@@ -1103,16 +1078,16 @@ class System:
             plt.close(fig)
         
         return fig, ax
-    
 
     ## plot contributions
     def plot_contributions(self, wn_grid, showfig=False, showspectrum=True):
         """
         Plot the spectrum for each contribution and molecule.
         
-        Args:
+        Parameters:
         - wn_grid (array): Wave number grid (in cm-1).
-        - title (str): Title of the plot (optional).
+        - showfig (bool): Whether to show the plot (optional).
+        - showspectrum (bool): Whether to show the total spectrum (optional).        
         
         Returns:
         - fig (matplotlib.figure): Figure of the plot.
@@ -1120,7 +1095,7 @@ class System:
         
         """
    
-        spectrum=self.generate_full_spectrum(wn_grid)
+        spectrum=self.generate_contributions(wn_grid)
                    
         fig, ax = plt.subplots(figsize=(10, 5))
     
@@ -1155,24 +1130,19 @@ class System:
                 
         ax.legend()
         
-        
-        
-        
         if showfig:
             plt.show()
         else:
             plt.close(fig)
   
         return fig, ax
-                    
-
 
     def explore_multiverse(self, wn_grid, snr, n_universes, labels=None, header=False,
-                           n_observations=1, spectra=True, observations=True, path=False):
+                           n_observations=1, spectra=True, observations=True, path=None):
         """
         Explore the multiverse, generate spectra and observations, and optionally save them in Parquet format.
 
-        Args:
+        Parameters:
         - wn_grid (array): Wave number grid.
         - snr (float): Signal-to-noise ratio.
         - n_universes (int): Number of universes to explore.
@@ -1182,30 +1152,27 @@ class System:
         - n_observations (int): Number of observations to generate (optional), default 1.
         - spectra (bool): Whether to save the spectra (optional), default True.
         - observations (bool): Whether to save the observations (optional), default False.
-        - path (str): Path to save results.
+        - path (str, optional): Path to save the files. If not provided, the files are not saved.
         
         Returns:
-        - dict: [spectra, observations] if both are True, [spectra] if only spectra is True,
-            and [observations] if only observations is True.
+        - dict: Dictionary containing 'spectra' and/or 'observations' DataFrames depending on arguments.
+                - spectra (DataFrame): Spectra of the universes.
+                - observations (DataFrame): Observations of the universes.
         """
 
         # Validate the transmission model
         if self._transmission is None:
-            print("A transmission model has not been generated.")
-            return
+            raise ValueError("A transmission model has not been generated.")
         
         if not any([spectra, observations]):
-            print("No results to save. Please specify whether to save spectra and/or observations.")
-            return
+            raise ValueError("At least one of 'spectra' or 'observations' must be True.")
         
         # Initialize a list to store all spectra generated
         spectra_list = []
         header_list = []
 
         for i in tqdm(range(n_universes), desc="Exploring universes"):
-
             self.make_tm()
-
             #generate the spectrum dataframe
             bin_wn,bin_rprs=self.generate_spectrum(wn_grid)
             columns = list(10000 / np.array(bin_wn))            
@@ -1214,9 +1181,8 @@ class System:
 
             current_spec_df = spec_df
             
-            # prepare the header
-            
-            current_header= {}
+            # prepare the header            
+            current_header= dict()
             # If header true, create a dataframe with system parameters
             if header:
                 params_dict = self.get_params() 
@@ -1231,8 +1197,9 @@ class System:
                             and label in self.transmission.chemistry.gases):
                         valid_labels.append(label)
                     elif isinstance(label, list):
-                        valid_sublabels = [sublabel for sublabel in label if sublabel\
-                            in self.transmission.chemistry.gases]
+                        valid_sublabels = [sublabel for sublabel 
+                                           in label if sublabel
+                                           in self.transmission.chemistry.gases]
                         if valid_sublabels:
                             valid_labels.append(valid_sublabels)
                 if valid_labels:
@@ -1249,22 +1216,33 @@ class System:
             self.move_universe()
 
         ## concatenate the list of spectra
-        all_spectra_df = pd.concat(spectra_list, axis=0, ignore_index=True)             
+        all_spectra_df = pd.concat(spectra_list, axis=0,
+                                   ignore_index=True)             
         ## concatenate the list of headers
         all_header_df = pd.DataFrame(header_list)
-                
-        ## generate observations
+                        
+        # generate observations
         if observations:
             print(f"Generating observations for {n_universes} spectra...")
-            all_observations_df = generate_df_noise(all_spectra_df, all_header_df,n_observations, snr)
+            all_observations_df = generate_df_noise(all_spectra_df,
+                                                    all_header_df,n_observations,
+                                                    snr)
             ## save the observations
-            if path:
-                all_observations_df.to_parquet(f'{path}_observations.parquet')
+            if path is not None:
+                ## copy the dataframe
+                all_observations_df_copy=all_observations_df.copy()
+                ## transform the columns to string
+                all_observations_df_copy.columns=all_observations_df_copy.columns.astype(str)
+                all_observations_df_copy.to_parquet(f'{path}_observations.parquet')
             if spectra:
                 all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),all_spectra_df.reset_index(drop=True)], axis=1)
                 ## save the spectra
-                if path:
-                    all_spectra_df.to_parquet(f'{path}_spectra.parquet')
+                if path is not None:
+                    ## copy the dataframe
+                    all_spectra_df_copy=all_spectra_df.copy()
+                    ## transform the columns to string
+                    all_spectra_df_copy.columns=all_spectra_df_copy.columns.astype(str)
+                    all_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
                 return dict(
                     spectra=all_spectra_df,
                     observations=all_observations_df
@@ -1272,19 +1250,15 @@ class System:
             else:
                 return dict(observations=all_observations_df)
         
-        else:
-            
+        else:            
             all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),\
                                       all_spectra_df.reset_index(drop=True)],
                                      axis=1)
             ## save the spectra
-            if path:
-                all_spectra_df.to_parquet(f'{path}_spectra.parquet')
+            if path is not None:
+                ## copy the dataframe
+                all_spectra_df_copy=all_spectra_df.copy()
+                ## transform the columns to string
+                all_spectra_df_copy.columns=all_spectra_df_copy.columns.astype(str)
+                all_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
             return dict(spectra=all_spectra_df)
-        
-
-                
-            
-                    
-                
-            

@@ -7,6 +7,7 @@
 
 
 import multirex as mrex
+import matplotlib.pyplot as plt
 
 print(mrex.version)
 
@@ -56,7 +57,7 @@ systemtrappist1.get_params()
 # In[8]:
 
 
-systemtrappist1.make_transmission_model()
+systemtrappist1.make_tm()
 # In[7]:
 
 
@@ -64,9 +65,9 @@ wn_grid=mrex.wavenumber_grid(0.5,6,100)
 
 
 # Uso de explore_multiverse para generar datos
-spec, obs = systemtrappist1.explore_multiverse(wn_grid=wn_grid,
+data= systemtrappist1.explore_multiverse(wn_grid=wn_grid,
                                    snr=3,
-                                   n_iter=3,
+                                   n_universes=3,
                                    labels=[["O3"],["CH4"]],
                                    header=True, 
                                    n_observations=2,
@@ -74,12 +75,18 @@ spec, obs = systemtrappist1.explore_multiverse(wn_grid=wn_grid,
                                    observations=True)
 
 
-
+spec=data["spectra"]
+obs=data["observations"]
 
 # In[10]:
 
 
-systemtrappist1.plot_full_spectrum(wn_grid,title="Trappist-1 e")
+fig,ax=systemtrappist1.plot_contributions(wn_grid,showspectrum=True,showfig=True)
+
+ax.set_title("Trappist-1 e Transmission Spectrum")
+fig.show()
+
+
 
 
 # In[12]:
