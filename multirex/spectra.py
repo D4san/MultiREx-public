@@ -42,23 +42,24 @@ def generate_value(value):
         return value
     
 
-def generate_df_noise(df_spectra, df_params, n_repeat, SNR, seed=None):
+def generate_df_noise(df, n_repeat, SNR, seed=None):
     """
     Generates a new DataFrame by applying Gaussian noise in a
     vectorized manner to the spectra, and then concatenates this
     result with another DataFrame containing other columns of information.
 
     Parameters:
-    - df_spectra: DataFrame with the spectra values.
-    - df_params: DataFrame with parameters associated with each spectrum.
+    - df: DataFrame multiIndex with the parameters of the spectra ["params"] and the spectra ["data]
     - n_repeat: How many times each spectrum is replicated.
     - SNR: Signal-to-noise ratio for each observation.
     - seed: Seed for the random number generator (optional).
 
     Returns:
-    - New DataFrame with noisy observations and the other columns 
-        of information.
+    - New DataFrame with parameters and spectra with noise added in the multiIndex ["params"] and ["data"].
     """
+    df_spectra=df["data"]
+    df_params=df["params"]
+
     if not isinstance(df_spectra, pd.DataFrame):
         raise ValueError("df_spectra must be a pandas DataFrame.")
     if not isinstance(df_params, pd.DataFrame):
@@ -109,17 +110,21 @@ def generate_df_noise(df_spectra, df_params, n_repeat, SNR, seed=None):
         columns=df_params.columns
         )
 
-    # insert SNR replicated dataframe to the spectra dataframe
-    df_spectra_replicated.insert(0, 'SNR', SNR)
+    # insert SNR replicated dataframe to other columns dataframe
+    df_other_columns_replicated.insert(0, 'SNR', SNR)
     # insert noise replicated dataframe to the spectra dataframe
-    df_spectra_replicated.insert(1, 'noise', noise_replicated.flatten())
+    df_other_columns_replicated.insert(1, 'noise', noise_replicated.flatten())
+
     
     # Concatenar los DataFrames
-    df_final = pd.concat(
-        [df_other_columns_replicated.reset_index(drop=True),
-         df_spectra_replicated.reset_index(drop=True)],
-         axis=1
-         )
+    df_other_columns_replicated.reset_index(drop=True, inplace=True)
+    df_other_columns_replicated.columns=pd.MultiIndex.from_product([['params'],df_other_columns_replicated.columns])
+    
+    print(df_other_columns_replicated)
+    df_spectra_replicated.reset_index(drop=True, inplace=True)
+    df_spectra_replicated.columns=pd.MultiIndex.from_product([['data'],df_spectra_replicated.columns])
+
+    df_final = df_other_columns_replicated.join(df_spectra_replicated)
 
     return df_final
 
