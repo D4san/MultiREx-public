@@ -42,23 +42,35 @@ def generate_value(value):
         return value
     
 
-def generate_df_noise(df, n_repeat, SNR, seed=None):
+def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
     """
     Generates a new DataFrame by applying Gaussian noise in a
     vectorized manner to the spectra, and then concatenates this
     result with another DataFrame containing other columns of information.
 
     Parameters:
-    - df: DataFrame multiIndex with the parameters of the spectra ["params"] and the spectra ["data]
+    - df: DataFrame with MultiIndex where 'params' and 'data' are the column levels.
     - n_repeat: How many times each spectrum is replicated.
     - SNR: Signal-to-noise ratio for each observation.
     - seed: Seed for the random number generator (optional).
 
     Returns:
-    - New DataFrame with parameters and spectra with noise added in the multiIndex ["params"] and ["data"].
+    - New DataFrame with parameters and spectra with noise added in
+        the 'params' and 'data' levels of the MultiIndex.
     """
-    df_spectra=df["data"]
-    df_params=df["params"]
+    if "params" not in df.columns:
+        print("Warning: No 'params' found in the DataFrame.")
+        df_params = pd.DataFrame()
+        if "data" not in df.columns:
+            print("Warning: No 'data' index found in the DataFrame.", 
+                "The DataFrame will be considered as 'data' index.")
+            df_spectra = df
+    else:
+        df_params = df["params"]
+        df_spectra = df["data"]
+
+
+
 
     if not isinstance(df_spectra, pd.DataFrame):
         raise ValueError("df_spectra must be a pandas DataFrame.")
@@ -110,19 +122,20 @@ def generate_df_noise(df, n_repeat, SNR, seed=None):
         columns=df_params.columns
         )
 
-    # insert SNR replicated dataframe to other columns dataframe
-    df_other_columns_replicated.insert(0, 'SNR', SNR)
-    # insert noise replicated dataframe to the spectra dataframe
-    df_other_columns_replicated.insert(1, 'noise', noise_replicated.flatten())
-
+    df_other_columns_replicated.insert(0, 'noise', noise_replicated.flatten())
+    df_other_columns_replicated.insert(1, 'SNR',SNR)
     
-    # Concatenar los DataFrames
+    # add the 'params' and 'data' levels to the MultiIndex
     df_other_columns_replicated.reset_index(drop=True, inplace=True)
-    df_other_columns_replicated.columns=pd.MultiIndex.from_product([['params'],df_other_columns_replicated.columns])
-    
-    print(df_other_columns_replicated)
+    df_other_columns_replicated.columns=pd.MultiIndex.from_product(
+        [['params'],
+         df_other_columns_replicated.columns]
+        )    
     df_spectra_replicated.reset_index(drop=True, inplace=True)
-    df_spectra_replicated.columns=pd.MultiIndex.from_product([['data'],df_spectra_replicated.columns])
+    df_spectra_replicated.columns=pd.MultiIndex.from_product(
+        [['data'],
+         df_spectra_replicated.columns]
+        )
 
     df_final = df_other_columns_replicated.join(df_spectra_replicated)
 
@@ -1037,7 +1050,7 @@ class System:
         spec_df = pd.DataFrame(bin_rprs_reshaped, columns=columns)
         
         # Generate dataframe with noisy observations
-        observations = generate_df_noise(spec_df,pd.DataFrame(), snr, n_observations)  
+        observations = generate_df_SNR_noise(spec_df, snr, n_observations)  
         
         return observations
 
@@ -1222,15 +1235,19 @@ class System:
 
         ## concatenate the list of spectra
         all_spectra_df = pd.concat(spectra_list, axis=0,
-                                   ignore_index=True)             
+                                   ignore_index=True)  
+        all_spectra_df.columns = pd.MultiIndex.from_product([['data'],all_spectra_df.columns])           
         ## concatenate the list of headers
         all_header_df = pd.DataFrame(header_list)
+        all_header_df.columns = pd.MultiIndex.from_product([['params'],all_header_df.columns])
+        
+        final_spectra_df=all_header_df.join(all_spectra_df)
+        
                         
         # generate observations
         if observations:
             print(f"Generating observations for {n_universes} spectra...")
-            all_observations_df = generate_df_noise(all_spectra_df,
-                                                    all_header_df,n_observations,
+            all_observations_df = generate_df_SNR_noise(final_spectra_df,n_observations,
                                                     snr)
             ## save the observations
             if path is not None:
@@ -1240,30 +1257,26 @@ class System:
                 all_observations_df_copy.columns=all_observations_df_copy.columns.astype(str)
                 all_observations_df_copy.to_parquet(f'{path}_observations.parquet')
             if spectra:
-                all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),all_spectra_df.reset_index(drop=True)], axis=1)
                 ## save the spectra
                 if path is not None:
                     ## copy the dataframe
-                    all_spectra_df_copy=all_spectra_df.copy()
+                    final_spectra_df_copy=final_spectra_df.copy()
                     ## transform the columns to string
-                    all_spectra_df_copy.columns=all_spectra_df_copy.columns.astype(str)
-                    all_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
+                    final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
+                    final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
                 return dict(
-                    spectra=all_spectra_df,
+                    spectra=final_spectra_df,
                     observations=all_observations_df
                 )
             else:
                 return dict(observations=all_observations_df)
         
         else:            
-            all_spectra_df=pd.concat([all_header_df.reset_index(drop=True),\
-                                      all_spectra_df.reset_index(drop=True)],
-                                     axis=1)
             ## save the spectra
             if path is not None:
                 ## copy the dataframe
-                all_spectra_df_copy=all_spectra_df.copy()
+                final_spectra_df_copy=final_spectra_df.copy()
                 ## transform the columns to string
-                all_spectra_df_copy.columns=all_spectra_df_copy.columns.astype(str)
-                all_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
-            return dict(spectra=all_spectra_df)
+                final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
+                final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
+            return dict(spectra=final_spectra_df)
