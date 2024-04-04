@@ -2,6 +2,7 @@ import json
 import math
 import os
 import time
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -59,16 +60,19 @@ def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
     - New DataFrame with parameters and spectra with noise added in
         the same format as the input DataFrame. df.params, df.data
     """
-    if "params" not in df.columns:
+    if not hasattr(df, "params"):
         print("Warning: 'params' attribute not found in the DataFrame.")
         df_params = pd.DataFrame()
-        if "data" not in df.columns:
+        if not hasattr(df, "data"):
             print("Warning: 'data' attribute not found in the DataFrame.", 
                 "The DataFrame will be considered as having 'data' attribute.")
             df_spectra = df
     else:
-        df_params = df.params
-        df_spectra = df.data
+        if not hasattr(df, "data"):
+            raise ValueError("The DataFrame must have a 'data' attribute.")
+        else:
+            df_params = df.params
+            df_spectra = df.data
 
     if not isinstance(df_spectra, pd.DataFrame):
         raise ValueError("df_spectra must be a pandas DataFrame.")
@@ -129,8 +133,10 @@ def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
          axis=1
          )
     
-    df_final.data = df_final.loc[:, -df_spectra_replicated.shape[1]:]
-    df_final.params = df_final.loc[:, :df_other_columns_replicated.shape[1]]
+    warnings.filterwarnings("ignore")
+    df_final.data = df_final.iloc[:, -df_spectra_replicated.shape[1]:]
+    df_final.params = df_final.iloc[:, :df_other_columns_replicated.shape[1]]
+    warnings.filterwarnings("default")
     return df_final
 
 
@@ -1232,13 +1238,13 @@ class System:
         ## concatenate the list of headers
         all_header_df = pd.DataFrame(header_list)
         
-        ## concatenate the header and the spectra
+        ## concatenate the header and the spectra and asign attributes
         final_spectra_df = pd.concat([all_header_df, all_spectra_df], axis=1)
-        final_spectra_df.data = final_spectra_df.iloc[:, -len(all_spectra_df.columns):]
-        final_spectra_df.params = final_spectra_df.iloc[:, :len(all_header_df.columns)]
-
+        warnings.filterwarnings("ignore")
+        final_spectra_df.data = final_spectra_df.iloc[:, -all_spectra_df.shape[1]:]
+        final_spectra_df.params = final_spectra_df.iloc[:, :all_header_df.shape[1]]
+        warnings.filterwarnings("default")
         
-                        
         # generate observations
         if observations:
             print(f"Generating observations for {n_universes} spectra...")
@@ -1272,6 +1278,6 @@ class System:
                 ## copy the dataframe
                 final_spectra_df_copy=final_spectra_df.copy()
                 ## transform the columns to string
-                final_spectra_df_copy.columns=final_spectra_df_copy["data"].columns.astype(str)
+                final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
                 final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
             return final_spectra_df
