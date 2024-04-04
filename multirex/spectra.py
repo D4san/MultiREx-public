@@ -49,28 +49,26 @@ def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
     result with another DataFrame containing other columns of information.
 
     Parameters:
-    - df: DataFrame with MultiIndex where 'params' and 'data' are the column levels.
+    - df: DataFrame with parameters and spectra. It must have attributes 'params' and 'data'.
+        Example: df.params, df.data
     - n_repeat: How many times each spectrum is replicated.
     - SNR: Signal-to-noise ratio for each observation.
     - seed: Seed for the random number generator (optional).
 
     Returns:
     - New DataFrame with parameters and spectra with noise added in
-        the 'params' and 'data' levels of the MultiIndex.
+        the same format as the input DataFrame. df.params, df.data
     """
     if "params" not in df.columns:
-        print("Warning: No 'params' found in the DataFrame.")
+        print("Warning: 'params' attribute not found in the DataFrame.")
         df_params = pd.DataFrame()
         if "data" not in df.columns:
-            print("Warning: No 'data' index found in the DataFrame.", 
-                "The DataFrame will be considered as 'data' index.")
+            print("Warning: 'data' attribute not found in the DataFrame.", 
+                "The DataFrame will be considered as having 'data' attribute.")
             df_spectra = df
     else:
-        df_params = df["params"]
-        df_spectra = df["data"]
-
-
-
+        df_params = df.params
+        df_spectra = df.data
 
     if not isinstance(df_spectra, pd.DataFrame):
         raise ValueError("df_spectra must be a pandas DataFrame.")
@@ -107,7 +105,7 @@ def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
         axis=0
         )
     
-    # apply gaussian noise vectorized
+    # apply Gaussian noise vectorized
     gaussian_noise = np.random.normal(
         0, noise_replicated, df_spectra_replicated.shape
         )
@@ -123,23 +121,18 @@ def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
         )
 
     df_other_columns_replicated.insert(0, 'noise', noise_replicated.flatten())
-    df_other_columns_replicated.insert(1, 'SNR',SNR)
+    df_other_columns_replicated.insert(1, 'SNR', SNR)
     
-    # add the 'params' and 'data' levels to the MultiIndex
-    df_other_columns_replicated.reset_index(drop=True, inplace=True)
-    df_other_columns_replicated.columns=pd.MultiIndex.from_product(
-        [['params'],
-         df_other_columns_replicated.columns]
-        )    
-    df_spectra_replicated.reset_index(drop=True, inplace=True)
-    df_spectra_replicated.columns=pd.MultiIndex.from_product(
-        [['data'],
-         df_spectra_replicated.columns]
-        )
-
-    df_final = df_other_columns_replicated.join(df_spectra_replicated)
-
+    df_final = pd.concat(
+        [df_other_columns_replicated.reset_index(drop=True),
+         df_spectra_replicated.reset_index(drop=True)],
+         axis=1
+         )
+    
+    df_final.data = df_final.loc[:, -df_spectra_replicated.shape[1]:]
+    df_final.params = df_final.loc[:, :df_other_columns_replicated.shape[1]]
     return df_final
+
 
 
 def wavenumber_grid(wl_min, wl_max, resolution):
@@ -1129,7 +1122,7 @@ class System:
         #set y low limit 
         base_rprs= self.transmission.planet.fullRadius**2/self.transmission.star.radius**2
         ax.axhline(y=base_rprs, alpha=0)
-        #add other y axis in the right with the zscale
+        # add other y axis in the right with the zscale
         ax2 = ax.twinx()
         ax2.axhline(y=max(self._zscale), alpha=0)
         ax2.axhline(y=0, alpha=0)
@@ -1236,12 +1229,14 @@ class System:
         ## concatenate the list of spectra
         all_spectra_df = pd.concat(spectra_list, axis=0,
                                    ignore_index=True)  
-        all_spectra_df.columns = pd.MultiIndex.from_product([['data'],all_spectra_df.columns])           
         ## concatenate the list of headers
         all_header_df = pd.DataFrame(header_list)
-        all_header_df.columns = pd.MultiIndex.from_product([['params'],all_header_df.columns])
         
-        final_spectra_df=all_header_df.join(all_spectra_df)
+        ## concatenate the header and the spectra
+        final_spectra_df = pd.concat([all_header_df, all_spectra_df], axis=1)
+        final_spectra_df.data = final_spectra_df.iloc[:, -len(all_spectra_df.columns):]
+        final_spectra_df.params = final_spectra_df.iloc[:, :len(all_header_df.columns)]
+
         
                         
         # generate observations
@@ -1269,7 +1264,7 @@ class System:
                     observations=all_observations_df
                 )
             else:
-                return dict(observations=all_observations_df)
+                return all_observations_df
         
         else:            
             ## save the spectra
@@ -1277,6 +1272,6 @@ class System:
                 ## copy the dataframe
                 final_spectra_df_copy=final_spectra_df.copy()
                 ## transform the columns to string
-                final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
+                final_spectra_df_copy.columns=final_spectra_df_copy["data"].columns.astype(str)
                 final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
-            return dict(spectra=final_spectra_df)
+            return final_spectra_df
