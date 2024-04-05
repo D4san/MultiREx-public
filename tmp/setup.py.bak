@@ -25,7 +25,7 @@ setuptools.setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         ],
-    version='0.1.4',
+    version='0.1.4.1',
 
     # ######################################################################
     # FILES
@@ -50,7 +50,7 @@ setuptools.setup(
     # DEPENDENCIES
     # ######################################################################
     install_requires=['numpy','taurex','matplotlib','tqdm'
-    ,'pandas'],
+    ,'pandas',"gdown"],
 
     # ######################################################################
     # OPTIONS
