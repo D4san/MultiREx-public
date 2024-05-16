@@ -87,4 +87,4 @@ Version 0.1.*:
 
 ------------
 
-This package has been designed and written by David Duque-Castaño and Jorge I. Zuluaga (C) 2023
+This package has been designed and written by David Duque-Castaño and Jorge I. Zuluaga (C) 2024
