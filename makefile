@@ -1,3 +1,4 @@
+# Clean crap
 clean:
 	@find . -name '*~' -delete
 	@find . -name '__pycache__' -type d | xargs rm -fr
