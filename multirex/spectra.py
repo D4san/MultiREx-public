@@ -1,3 +1,14 @@
+#########################################
+#  __  __      _ _   _ ___ ___          #
+# |  \/  |_  _| | |_(_) _ \ __|_ __     #
+# | |\/| | || | |  _| |   / _|\ \ /     #
+# |_|  |_|\_,_|_|\__|_|_|_\___/_\_\     #
+# Planetary spectra generator           #
+#########################################
+
+#########################################
+# EXTERNAL PACKAGES
+#########################################
 import json
 import math
 import os
@@ -28,7 +39,9 @@ OpacityCache().clear_cache()
 xsec_path = os.path.join(os.path.dirname(__file__), 'data')
 OpacityCache().set_opacity_path(xsec_path)
 
-
+#########################################
+# MAIN CLASSES
+#########################################
 def generate_value(value):
     """
     Generates a value if it is a single value or a random value if it is a range,
@@ -42,7 +55,6 @@ def generate_value(value):
     else:
         return value
     
-
 def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
     """
     Generates a new DataFrame by applying Gaussian noise in a

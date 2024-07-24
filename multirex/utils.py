@@ -1,11 +1,16 @@
+#########################################
+#  __  __      _ _   _ ___ ___          #
+# |  \/  |_  _| | |_(_) _ \ __|_ __     #
+# | |\/| | || | |  _| |   / _|\ \ /     #
+# |_|  |_|\_,_|_|\__|_|_|_\___/_\_\     #
+# Planetary spectra generator           #
+#########################################
+
 import numpy as np
 import gdown
 import os
 import zipfile
 from taurex.cache import OpacityCache
-
-
-
 
 def get_stellar_phoenix(path=""):
     """Download the Phoenix stellar spectra from the Google Drive link and
@@ -80,7 +85,6 @@ def get_gases(path=""):
     OpacityCache().clear_cache()
     xsec_path=molecule_path
     OpacityCache().set_opacity_path(xsec_path)
-    
     
 def list_gases():
     print("Available gases in the database:")
