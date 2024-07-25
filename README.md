@@ -12,51 +12,38 @@
 [![ascl](https://img.shields.io/badge/ascl-2205.016-blue.svg?colorB=262255)](https://ascl.net/2205.016)
 -->
 
-MultiREx is a Python library designed for generation of synthetic exoplanet transmission spectra. This tool extends the functionalities of the `Taurex` library (see below), reorganizing and enabling the massive generation of spectra and observations with noise.
+MultiREx is a Python library designed for generating synthetic exoplanet transmission spectra. This tool extends the functionalities of the `Taurex` library (see below), reorganizing and enabling the massive generation of spectra and observations with added noise. The package was originally devised for training large machine learning models at identifying the presence of biosignatures in noisy spectra. However, it should also be used for other purposes.
 
 For the science behind the model please refer to the following paper:
 
 > David S. Duque-Castaño, Jorge I. Zuluaga, and Lauren Flor-Torres (2024), **Machine-assisted classification of potential biosignatures in earth-like exoplanets using low signal-to-noise ratio transmission spectra**, submitted to MNRAS.
-
 <!--
 [Astronomy and Computing 40 (2022) 100623](https://www.sciencedirect.com/science/article/pii/S2213133722000476), [arXiv:2207.08636](https://arxiv.org/abs/2207.08636).
 -->
 
 ## Downloading and Installing `MultiREx` 
 
-`MultiREx` is available at the `Python` package index and can be installed using:
+`MultiREx` is available at the `Python` package index and can be installed in Linux using:
 
 ```bash
 $ sudo pip install multirex
 ```
 as usual this command will install all dependencies and download some useful data, scripts and constants.
 
-> **NOTE**: If you don't have access to `sudo`, you can install `MultiREx` in your local environmen (usually at `~/.local/`). In that case you need to add to your `PATH` environmental variable the location of the local python installation. Add to `~/.bashrc` the line `export PATH=$HOME/.local/bin:$PATH`
+> **NOTE**: If you don't have access to `sudo`, you can install `MultiREx` in your local environmen (usually at `~/.local/`). In that case you need to add to your `PATH` environmental variable the location of the local python installation. For that purpose add to the configuration files `~/.bashrc` or `~/.bash_profile`, the line `export PATH=$HOME/.local/bin:$PATH`
 
-If you are a developer or want to work directly from the package source clone `MultiREx` from the `GitHub` repository:
+If you are a developer or want to work directly with the package sources, clone `MultiREx` from the `GitHub` repository:
 
 ```bash
 $ git clone https://github.com/D4san/MultiREx-public
 ```
 
-You may install the package from the sources using:
+To install the package from the sources use:
 
 ```bash
 $ cd MultiREx-public
 $ python3 setup.py install
 ```
-
-## Key features of `MultiREx`
-
-- **Planetary System Assembly**: Facilitates the combination of different planets, stars, and atmospheres to explore various stellar system configurations.
-
-- **Customizable Atmospheres**: Allows the addition and configuration of varied atmospheric compositions for the planets.
-
-- **Synthetic Spectrum Generation**: Produces realistic spectra based on the attributes and conditions of planetary systems.
-
-- **Astronomical Observation Simulation**: Includes `randinstrument` to simulate spectral observations with noise levels determined by the signal-to-noise ratio (SNR).
-
-- **Multiverse analysis**: Automates the generation of multiple spectra that randomly vary in specific parameters, providing a wide range of results for analysis.
 
 ## Running `MultiREx` in `GoogleColab`
 
@@ -88,14 +75,13 @@ star=mrex.Star(temperature=5777,radius=1,mass=1)
 
 Radius and mass are in solar units.
 
-The properties of the planet
+Now let's create the planet:
 ```python
 planet=mrex.Planet(radius=1,mass=1)
 ```
-
 Radius and mass are in units of Earth properties. 
 
-Now it's time to give the planet an atmosphere. This is a basic example of an N$_2$ atmosphere having 100 ppm of CO2 and 1 ppm of CH4:
+Now it's time to give the planet an atmosphere. This is a basic example of an N2 atmosphere having 100 ppm of CO2 and 1 ppm of CH4:
 
 ```python
 atmosphere=mrex.Atmosphere(
@@ -119,13 +105,13 @@ system=mrex.System(star=star,planet=planet,sma=1)
 
 Semimajor axis of the planeta (`sma`) is given in au (astronomical units).
 
-Now, we are ready to see some spectrum. For this purpose we need to create a transmission model, i.e. a model that allows us to generate transmission spectra:
+We are ready to see some spectrum. For this purpose we need to create a transmission model:
 
 ```python
 system.make_tm()
 ```
 
-Once initialized, we may plot the transmission spectra over a given grid of wavelengths:
+Once initialized, let's plot the transmission spectrum over a given grid of wavenumbers or wavelengths:
 
 ```python
 wns = mrex.Physics.wavenumber_grid(wl_min=0.6,wl_max=10,resolution=1000)
@@ -134,9 +120,9 @@ fig, ax = system.plot_contributions(wns,xscale='log')
 
 <p align="center"><img src="https://github.com/D4san/MultiREx-public/blob/main/examples/resources/contributions-transmission-spectrum.png?raw=true" alt="Contributions in transmission spectra"/></p>
 
-All of these functionalities are also available in `Taurex`. However, the interface to `MultiREx` is way more intuitive, but, more importantly, it is also best suited for the real superpower of the package: the capaciy to create large ensamble of random systems. 
+All of these functionalities are also available in `Taurex`. However, the interface to `MultiREx` is much more intuitive and, more importantly, it is also best suited for the real superpower of the package: the capaciy to create large ensamble of random planetary systems. 
 
-For creating a random system we can use the command:
+For creating a random planetary system starting with a range of the relevant parameters (ranges given between parenthesis), we use the command:
 
 ```python
 system=mrex.System(
@@ -163,23 +149,35 @@ system=mrex.System(
 )
 ```
 
-Here we assume that all key parameters are physically and statistically independent.
+In this simple example, we assume that all key parameters (stellar mass and radius, planetary mass and radius, surface planetary temperature, semimajor axis, etc.) are physically and statistically independent. This is not true, but it works for testing the basic features of the package.
 
-Using this template we may generate thousands of spectra that can be used for instance for training machine learning algorithms. In the figure below we show the resulting synthetic spectra.
+Using this system as a template we may generate thousands of spectra that can be used, for instance, for training machine learning algorithms. For an in depth explanation of how to use those advanced functionalities of `MultiREx` please check the  [quick start guide](https://github.com/D4san/MultiREx-public/blob/main/examples/multirex-quickstart.ipynb).
+
+In the figure below we show some of the resulting synthetic spectra, along with the corresponding theoretical spectrum corresponding to a particular set of random values for the key system parameters.
 
 <p align="center"><img src="https://github.com/D4san/MultiREx-public/blob/main/examples/resources/synthetic-transmission-spectra.png?raw=true" alt="Synthetic transmission spectra"/></p>
 
-For a more in depth explanation of these commands are available in the [quick start guide](https://github.com/D4san/MultiREx-public/blob/main/examples/multirex-quickstart.ipynb).
-
 ## Further examples
 
-For usage tutorials, access the `examples` folder. Specifically, this folder contains a subfolder named `examples/papers`, which demonstrates how MultiREx can be used in research that utilizes the generated data to train Machine Learning models.
+In order to illustrate the basic and advanced functionalities of `MultiREx` we provided with the package repository several example `Jupyter` notebooks (see directory `examples/`). Additionally, all the notebooks used to generate the results and create the figures for our papers are also available in the `GitHub` repo (see directory `examples/papers`). 
+
+## Key features of `MultiREx`
+
+- **Planetary System Assembly**: Facilitates the combination of different planets, stars, and atmospheres to explore various stellar system configurations.
+
+- **Customizable Atmospheres**: Allows the addition and configuration of varied atmospheric compositions for the planets.
+
+- **Synthetic Spectrum Generation**: Produces realistic spectra based on the attributes and conditions of planetary systems.
+
+- **Astronomical Observation Simulation**: Includes `randinstrument` to simulate spectral observations with noise levels determined by the signal-to-noise ratio (SNR).
+
+- **Multiverse analysis**: Automates the generation of multiple spectra that randomly vary in specific parameters, providing a wide range of results for analysis.
 
 ### A note about `Taurex`
 
 MultiREx is built on the spectral calculation capabilities and the basic structure of [Taurex](https://taurex3-public.readthedocs.io/en/latest/index.html). If you use `MultiREx` in your research or publications, please also cite Taurex as follows:
 
-> A. F. Al-Refaie, Q. Changeat, I.P. Waldmann, and G. Tinetti **TauREx III: A fast, dynamic, and extendable framework for retrievals**,  arXiv e-prints." arXiv preprint arXiv:1912.07759 (2019).
+> A. F. Al-Refaie, Q. Changeat, I.P. Waldmann, and G. Tinetti **TauREx III: A fast, dynamic, and extendable framework for retrievals**,  arXiv preprint [arXiv:1912.07759 (2019)](https://arxiv.org/abs/1912.07759).
 
 It is necessary to load the opacities or cross-sections of the molecules used in the formats that Taurex utilizes, which can be obtained from:
 - [ExoMol](https://www.exomol.com/data/search/)
