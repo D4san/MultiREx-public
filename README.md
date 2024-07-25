@@ -58,6 +58,19 @@ $ python3 setup.py install
 
 - **Multiverse analysis**: Automates the generation of multiple spectra that randomly vary in specific parameters, providing a wide range of results for analysis.
 
+## Running `MultiREx` in `GoogleColab`
+
+To run MultiREx in Google Colab you should execute:
+```python
+!pip install -Uq multirex
+```
+
+After installing you should reset session before importing the package. This is to avoid the unintended behavior of the package `pybtex`. After reset you should not reinstall the package, just import it:
+
+```python
+import multirex as mrex
+```
+
 ## Quickstart
 
 To start using `MultiREx` you must import the package:
