@@ -82,7 +82,7 @@ planet=mrex.Planet(radius=1,mass=1)
 
 Radius and mass are in units of Earth properties. 
 
-Now it's time to give the planet an atmosphere. This is a basic example of an N$_2$ atmosphere having 100 ppm of CO$_2$ and 1 ppm of CH$_4$:
+Now it's time to give the planet an atmosphere. This is a basic example of an N$_2$ atmosphere having 100 ppm of CO2 and 1 ppm of CH4:
 
 ```python
 atmosphere=mrex.Atmosphere(
@@ -119,7 +119,7 @@ wns = mrex.Physics.wavenumber_grid(wl_min=0.6,wl_max=10,resolution=1000)
 fig, ax = system.plot_contributions(wns,xscale='log')
 ```
 
-<p align="center"><img src="https://github.com/seap-udea/MultiREx-public/blob/main/examples/resources/contributions-transmission-spectra.png?raw=true" alt="Conceptual illustration of LAR"/></p>
+<p align="center"><img src="https://github.com/seap-udea/MultiREx-public/blob/main/examples/resources/contributions-transmission-spectra.png?raw=true" alt="Contributions in transmission spectra"/></p>
 
 All of these functionalities are also available in `Taurex`. However, the interface to `MultiREx` is way more intuitive, but, more importantly, it is also best suited for the real superpower of the package: the capaciy to create large ensamble of random systems. 
 
