@@ -154,9 +154,9 @@ Here we assume that all key parameters are physically and statistically independ
 
 Using this template we may generate thousands of spectra that can be used for instance for training machine learning algorithms. In the figure below we show the resulting synthetic spectra.
 
-<p align="center"><img src="https://github.com/seap-udea/MultiREx-public/blob/main/examples/resources/synthetic-transmission-spectra.png?raw=true" alt="Conceptual illustration of LAR"/></p>
+<p align="center"><img src="https://github.com/seap-udea/MultiREx-public/blob/main/examples/resources/synthetic-transmission-spectra.png?raw=true" alt="Synthetic transmission spectra"/></p>
 
-For a more in depth explanation of these commands are available in the [quick start guide]().
+For a more in depth explanation of these commands are available in the [quick start guide](https://github.com/seap-udea/MultiREx-public/blob/main/examples/multirex-quickstart.ipynb).
 
 ## Further examples
 
@@ -176,7 +176,7 @@ We have pre-downloaded some of these molecules, and others can be downloaded usi
 
 ## What's new
 
-For a detailed list of the newest characteristics of the code see the file [What's new](https://github.com/D4san/MultiREx-public/blob/master/WHATSNEW.md).
+For a detailed list of the newest characteristics of the code see the file [What's new](https://github.com/seap-udea/MultiREx-public/blob/master/WHATSNEW.md).
 
 ------------
 
