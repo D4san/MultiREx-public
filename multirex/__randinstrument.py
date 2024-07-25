@@ -1,12 +1,17 @@
+#########################################
+#  __  __      _ _   _ ___ ___          #
+# |  \/  |_  _| | |_(_) _ \ __|_ __     #
+# | |\/| | || | |  _| |   / _|\ \ /     #
+# |_|  |_|\_,_|_|\__|_|_|_\___/_\_\     #
+# Planetary spectra generator           #
+#########################################
+
 from taurex.instruments import Instrument
 import numpy as np
 import math
 
-
 class RndSNRInstrument(Instrument):
-    """
-
-    Simple instrument model that, for a given
+    """Simple instrument model that, for a given
     wavelength-independant, signal-to-noise ratio,
     compute resulting noise from it.
 
@@ -22,7 +27,6 @@ class RndSNRInstrument(Instrument):
 
 
     """
-
     def __init__(self, SNR=10, binner=None):
         super().__init__()
 
@@ -48,7 +52,6 @@ class RndSNRInstrument(Instrument):
             noise/ math.sqrt(num_observations), noise.shape)
         return wngrid, specnoisi, \
             noise / math.sqrt(num_observations)
-
 
     @classmethod
     def input_keywords(cls):

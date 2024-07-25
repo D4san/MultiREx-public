@@ -1,3 +1,10 @@
+#########################################
+#  __  __      _ _   _ ___ ___          #
+# |  \/  |_  _| | |_(_) _ \ __|_ __     #
+# | |\/| | || | |  _| |   / _|\ \ /     #
+# |_|  |_|\_,_|_|\__|_|_|_\___/_\_\     #
+# Planetary spectra generator           #
+#########################################
 
 # coding: utf-8
 
@@ -78,15 +85,16 @@ data= systemtrappist1.explore_multiverse(wn_grid=wn_grid,
 spec=data["spectra"]
 obs=data["observations"]
 
+print("Plotting...")
+exit(0)
+
 # In[10]:
 
-
+plt.ioff()
 fig,ax=systemtrappist1.plot_contributions(wn_grid,showspectrum=True,showfig=True)
 
 ax.set_title("Trappist-1 e Transmission Spectrum")
-fig.show()
-
-
+fig.savefig('trappist1e-spectra.png')
 
 
 # In[12]:
@@ -95,5 +103,4 @@ print("Spectra Dataframe")
 print(spec.describe())
 print("Observations Dataframe")
 print(obs.describe())
-
 

@@ -1,4 +1,11 @@
-# Clean crap
+#########################################
+#  __  __      _ _   _ ___ ___          #
+# |  \/  |_  _| | |_(_) _ \ __|_ __     #
+# | |\/| | || | |  _| |   / _|\ \ /     #
+# |_|  |_|\_,_|_|\__|_|_|_\___/_\_\     #
+# Planetary spectra generator           #
+#########################################
+
 clean:
 	@find . -name '*~' -delete
 	@find . -name '__pycache__' -type d | xargs rm -fr
@@ -13,7 +20,3 @@ cleanall:clean cleandist
 release:
 	@echo "Releasing a new version..."
 	@bash bin/release.sh $(RELMODE) $(VERSION)
-
-
-# hola mundo
-
