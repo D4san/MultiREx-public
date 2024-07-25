@@ -24,7 +24,7 @@ For the science behind the model please refer to the following paper:
 
 ## Downloading and Installing `MultiREx` 
 
-`PyLAR` is available at the `Python` package index and can be installed using:
+`MultiREx` is available at the `Python` package index and can be installed using:
 
 ```bash
 $ sudo pip install multirex
