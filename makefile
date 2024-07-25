@@ -19,4 +19,4 @@ cleanall:clean cleandist
 #Example: make release RELMODE=release VERSION=0.2.0.2 
 release:
 	@echo "Releasing a new version..."
-	@bash bin/release.sh $(RELMODE) $(VERSION)
+	@bash -r bin/release.sh $(RELMODE) $(VERSION)

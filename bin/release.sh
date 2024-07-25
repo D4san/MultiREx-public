@@ -68,9 +68,9 @@ rm -rf dist/*
 ##################################################################
 # Report version
 ##################################################################
-echo $version >> .versions
+echo $version |tee -a .versions
 cp multirex/version.py tmp/version.py.bak
-echo "version='$version'" > multirex/version.py
+echo "version='$version'" |tee multirex/version.py
 
 ##################################################################
 # Build package
