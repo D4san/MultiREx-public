@@ -56,8 +56,7 @@ setuptools.setup(
     # ######################################################################
     # DEPENDENCIES
     # ######################################################################
-    install_requires=['numpy','taurex','matplotlib','tqdm'
-    ,'pandas',"gdown"],
+    install_requires=['numpy','taurex','matplotlib','tqdm','pandas','gdown','pyarrow'],
 
     # ######################################################################
     # OPTIONS

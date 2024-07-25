@@ -54,34 +54,38 @@ def get_gases(path=""):
     
     # Define the directory path where the content will be extracted
     molecule_path = os.path.join(path,'opacidades-todas')
-    
-    # URL of the ZIP file to download
-    url = 'https://drive.google.com/uc?id=1z7R0hD1IBuYo-nnl7dpE_Ls2337a0uv6'
-    # Local ZIP file name
-    zip_path = path+"opacidades-todas.zip"
-
-    # Check if the directory already exists
-    if not os.path.exists(molecule_path):
-        
-        if path == "":
-            print("The path where the opacity database will be downloaded is : ",
-              "current directory")
-        else:
-            print("The path where the opacity database will be downloaded is: ",
-              path)
-        
-        # Download the ZIP file
-        gdown.download(url, zip_path, quiet=False)
-
-        # Unzip the ZIP file
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(path)
-
-        # Delete the ZIP file after extraction
-        os.remove(zip_path)
-    else:
+    if os.path.exists(molecule_path):
         print("The directory to the opacity database already exists in the specified path: ",
               path if path != "" else "current directory")
+    else:
+        # URL of the ZIP file to download
+        url = 'https://drive.google.com/uc?id=1z7R0hD1IBuYo-nnl7dpE_Ls2337a0uv6'
+        # Local ZIP file name
+        zip_path = path+"/opacidades-todas.zip"
+
+        # Check if the directory already exists
+        if not os.path.exists(molecule_path):
+            
+            if path == "":
+                print("The path where the opacity database will be downloaded is : ",
+                "current directory")
+            else:
+                print("The path where the opacity database will be downloaded is: ",
+                path)
+            
+            # Download the ZIP file
+            gdown.download(url, zip_path, quiet=False)
+
+            # Unzip the ZIP file
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(path)
+
+            # Delete the ZIP file after extraction
+            os.remove(zip_path)
+        else:
+            print("The directory to the opacity database already exists in the specified path: ",
+                path if path != "" else "current directory")
+            
     OpacityCache().clear_cache()
     xsec_path=molecule_path
     OpacityCache().set_opacity_path(xsec_path)

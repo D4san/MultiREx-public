@@ -9,8 +9,6 @@
 #########################################
 # EXTERNAL PACKAGES
 #########################################
-import json
-import math
 import os
 import time
 import warnings
@@ -32,9 +30,13 @@ from taurex.temperature import Isothermal
 
 import multirex.utils as Util
 
-taurex.log.disableLogging()
+from astropy.constants import M_jup, M_earth, R_jup, R_earth, R_sun, M_sun
 
+#########################################
+# LOAD DATA
+#########################################
 # Predefine the opacity path with the data included in the package
+taurex.log.disableLogging()
 OpacityCache().clear_cache()
 xsec_path = os.path.join(os.path.dirname(__file__), 'data')
 OpacityCache().set_opacity_path(xsec_path)
@@ -42,133 +44,174 @@ OpacityCache().set_opacity_path(xsec_path)
 #########################################
 # MAIN CLASSES
 #########################################
-def generate_value(value):
-    """
-    Generates a value if it is a single value or a random value if it is a range,
-    returns None if the value is None.
-    """
-    if value is None:
-        return None
-    elif (isinstance(value, tuple) and
-          len(value) == 2):        
-        return np.random.uniform(value[0], value[1])
-    else:
-        return value
-    
-def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
-    """
-    Generates a new DataFrame by applying Gaussian noise in a
-    vectorized manner to the spectra, and then concatenates this
-    result with another DataFrame containing other columns of information.
+class Physics:    
+    def wavenumber_grid(wl_min, wl_max, resolution):
+        """Generate a wave number grid from a wavelength range and resolution.
+        
+        wavenumber = 1/wavelength
 
-    Parameters:
-    - df: DataFrame with parameters and spectra. It must have attributes 'params' and 'data'.
-        Example: df.params, df.data
-    - n_repeat: How many times each spectrum is replicated.
-    - SNR: Signal-to-noise ratio for each observation.
-    - seed: Seed for the random number generator (optional).
+        Args:
+            wl_min (float): 
+                Minimum wavelength in microns.
+            
+            wl_max (float): 
+                Maximum wavelength in microns.
+            
+            resolution (int): 
+                Resolution of the wave number grid.    
+        
+        Returns:
+            wn (np.array): 
+                Wave number grid in cm^-1.
 
-    Returns:
-    - New DataFrame with parameters and spectra with noise added in
-        the same format as the input DataFrame. df.params, df.data
-    """
-    if not hasattr(df, "params"):
-        print("Warning: 'params' attribute not found in the DataFrame.")
-        df_params = pd.DataFrame()
-        if not hasattr(df, "data"):
-            print("Warning: 'data' attribute not found in the DataFrame.", 
-                "The DataFrame will be considered as having 'data' attribute.")
-            df_spectra = df
-    else:
-        if not hasattr(df, "data"):
-            raise ValueError("The DataFrame must have a 'data' attribute.")
+        Notes:
+            To obtain the wavelength grid, use the following formula:
+
+            >> wl = 1/(wn*1e2) # in meters
+
+            The factor 1e2 is used to convert cm^-1 to m^-1. Or:
+
+            >> wl = 1/(wn*1e2)*1e6 # in microns
+        """
+        return np.sort(10000/np.logspace(np.log10(wl_min),np.log10(wl_max),resolution))
+
+    def generate_value(value):
+        """
+        Generates a value if it is a single value or a random value if it is a range,
+        returns None if the value is None.
+        """
+        if value is None:
+            return None
+        elif (isinstance(value, tuple) and
+            len(value) == 2):        
+            return np.random.uniform(value[0], value[1])
+        elif isinstance(value, list):
+            return np.random.choice(value)
         else:
-            df_params = df.params
-            df_spectra = df.data
+            return value
+        
+    def generate_df_SNR_noise(df, n_repeat, SNR, seed=None):
+        """
+        Generates a new DataFrame by applying Gaussian noise in a
+        vectorized manner to the spectra, and then concatenates this
+        result with another DataFrame containing other columns of information.
 
-    if not isinstance(df_spectra, pd.DataFrame):
-        raise ValueError("df_spectra must be a pandas DataFrame.")
-    if not isinstance(df_params, pd.DataFrame):
-        raise ValueError("df_params must be a pandas DataFrame.")
-    if (not isinstance(n_repeat, int) or
-        n_repeat <= 0):
-        raise ValueError("n_repeat must be a positive integer.")
-    if (not isinstance(SNR, (int, float)) or
-        SNR <= 0):
-        raise ValueError("SNR must be a positive number.")
-    if (seed is not None and
-        (not isinstance(seed, int) or
-            seed < 0)):
-        raise ValueError("seed must be a non-negative integer.")
+        Parameters:
+        - df: DataFrame with parameters and spectra. It must have attributes 'params' and 'data'.
+            Example: df.params, df.data
+        - n_repeat: How many times each spectrum is replicated.
+        - SNR: Signal-to-noise ratio for each observation.
+        - seed: Seed for the random number generator (optional).
 
-    if seed is not None:
-        np.random.seed(seed)  
-    
-    # Replicate the spectra DataFrame according to the replication factor
-    df_spectra_replicated = pd.DataFrame(
-        np.repeat(df_spectra.values, n_repeat, axis=0),
-        columns=df_spectra.columns
-        )
-    
-    # Calculate the signal and noise for each spectrum and replicate it
-    signal_max = df_spectra.max(axis=1)
-    signal_min = df_spectra.min(axis=1)
-    signal_diff = signal_max - signal_min
-    noise_per_spectra = signal_diff / SNR 
-    noise_replicated = np.repeat(
-        noise_per_spectra.values[:, np.newaxis],
-        n_repeat,
-        axis=0
-        )
-    
-    # apply Gaussian noise vectorized
-    gaussian_noise = np.random.normal(
-        0, noise_replicated, df_spectra_replicated.shape
-        )
-    
-    df_spectra_replicated += gaussian_noise
+        Returns:
+        - New DataFrame with parameters and spectra with noise added in
+            the same format as the input DataFrame. df.params, df.data
+        """
+        if not hasattr(df, "params"):
+            print("Warning: 'params' attribute not found in the DataFrame.")
+            df_params = pd.DataFrame()
+            if not hasattr(df, "data"):
+                print("Warning: 'data' attribute not found in the DataFrame.", 
+                    "The DataFrame will be considered as having 'data' attribute.")
+                df_spectra = df
+        else:
+            if not hasattr(df, "data"):
+                raise ValueError("The DataFrame must have a 'data' attribute.")
+            else:
+                df_params = df.params
+                df_spectra = df.data
 
-    # Replicate the DataFrame of other parameters to match the number
-    # of rows of df_spectra_replicated
-    
-    df_other_columns_replicated = pd.DataFrame(
-        np.repeat(df_params.values,n_repeat, axis=0),
-        columns=df_params.columns
-        )
+        if not isinstance(df_spectra, pd.DataFrame):
+            raise ValueError("df_spectra must be a pandas DataFrame.")
+        if not isinstance(df_params, pd.DataFrame):
+            raise ValueError("df_params must be a pandas DataFrame.")
+        if (not isinstance(n_repeat, int) or
+            n_repeat <= 0):
+            raise ValueError("n_repeat must be a positive integer.")
+        if (not isinstance(SNR, (int, float)) or
+            SNR <= 0):
+            raise ValueError("SNR must be a positive number.")
+        if (seed is not None and
+            (not isinstance(seed, int) or
+                seed < 0)):
+            raise ValueError("seed must be a non-negative integer.")
 
-    df_other_columns_replicated.insert(0, 'noise', noise_replicated.flatten())
-    df_other_columns_replicated.insert(1, 'SNR', SNR)
-    
-    df_final = pd.concat(
-        [df_other_columns_replicated.reset_index(drop=True),
-         df_spectra_replicated.reset_index(drop=True)],
-         axis=1
-         )
-    
-    warnings.filterwarnings("ignore")
-    df_final.data = df_final.iloc[:, -df_spectra_replicated.shape[1]:]
-    df_final.params = df_final.iloc[:, :df_other_columns_replicated.shape[1]]
-    warnings.filterwarnings("default")
-    return df_final
+        if seed is not None:
+            np.random.seed(seed)  
+        
+        # Replicate the spectra DataFrame according to the replication factor
+        df_spectra_replicated = pd.DataFrame(
+            np.repeat(df_spectra.values, n_repeat, axis=0),
+            columns=df_spectra.columns
+            )
+        
+        # Calculate the signal and noise for each spectrum and replicate it
+        signal_max = df_spectra.max(axis=1)
+        signal_min = df_spectra.min(axis=1)
+        signal_diff = signal_max - signal_min
+        noise_per_spectra = signal_diff / SNR 
+        noise_replicated = np.repeat(
+            noise_per_spectra.values[:, np.newaxis],
+            n_repeat,
+            axis=0
+            )
+        
+        # apply Gaussian noise vectorized
+        gaussian_noise = np.random.normal(
+            0, noise_replicated, df_spectra_replicated.shape
+            )
+        
+        df_spectra_replicated += gaussian_noise
 
+        # Replicate the DataFrame of other parameters to match the number
+        # of rows of df_spectra_replicated
+        
+        df_other_columns_replicated = pd.DataFrame(
+            np.repeat(df_params.values,n_repeat, axis=0),
+            columns=df_params.columns
+            )
 
+        df_other_columns_replicated.insert(0, 'noise', noise_replicated.flatten())
+        df_other_columns_replicated.insert(1, 'SNR', SNR)
+        
+        df_final = pd.concat(
+            [df_other_columns_replicated.reset_index(drop=True),
+            df_spectra_replicated.reset_index(drop=True)],
+            axis=1
+            )
+        
+        warnings.filterwarnings("ignore")
+        df_final.data = df_final.iloc[:, -df_spectra_replicated.shape[1]:]
+        df_final.params = df_final.iloc[:, :df_other_columns_replicated.shape[1]]
+        warnings.filterwarnings("default")
+        return df_final
 
-def wavenumber_grid(wl_min, wl_max, resolution):
-    """
-    Generate a wave number grid from a wavelength range and resolution.
-    
-    Args:
-    - wl_min (float): Minimum wavelength in microns.
-    - wl_max (float): Maximum wavelength in microns.
-    - resolution (int): Resolution of the wave number grid.    
-    
-    Returns:
-    - np.array: Wave number grid in cm^-1.
-    """
+    def spectrum2altitude(spectrum, Rp, Rs):
+        """Converts the transit depth to the atmospheric effective altitude.
 
-    return np.sort(10000 / np.logspace(np.log10(wl_min),
-                                       np.log10(wl_max),
-                                       resolution))
+        Parameters:
+        - depth (float): Transit depth.
+        - Rp (float): Planet radius in Earth radii.
+        - Rs (float): Star radius in solar radii.
+        
+        Returns:
+        - float: Atmospheric effective altitude in km.
+        """
+        effalts = (np.sqrt(spectrum)*Rs*R_sun.value - Rp*R_earth.value)/1e3
+        return effalts
+
+    def df2spectra(observation):
+        """Convert observations dataframe to spectra
+        """
+        wls = np.array(observation.columns[2:],dtype=float)
+        spectra = np.array(observation.iloc[:,2:])
+        noise = np.array(observation['noise'])
+        return noise, wls, spectra
+
+# For legacy code compatibility
+wavenumber_grid = Physics.wavenumber_grid
+generate_value = Physics.generate_value
+generate_df_SNR_noise = Physics.generate_df_SNR_noise
 
 class Planet:
     """
@@ -319,7 +362,7 @@ class Planet:
             )
         return params
 
-    def move_universe(self, atmosphere=False):
+    def reshuffle(self, atmosphere=False):
         """
         Regenerates the planet's attributes using the original values and optionally updates the atmosphere, excluding albedo.
         """
@@ -328,7 +371,7 @@ class Planet:
         self.set_radius(self._original_params["radius"])
         self.set_mass(self._original_params["mass"])
         if atmosphere and self._atmosphere:
-            self._atmosphere.move_universe()
+            self._atmosphere.reshuffle()
 
 
 class Atmosphere:
@@ -424,11 +467,13 @@ class Atmosphere:
               value < 0):
             raise ValueError("Base pressure value must be positive.")
             # validate if top pressure is smaller than base pressure
-        if (self._top_pressure is not None
-            and value < self._top_pressure):
-            raise ValueError("Base pressure must be greater than top pressure.")
         
         self._base_pressure = generate_value(value)
+        
+        if (self._top_pressure is not None
+            and self._base_pressure < self._top_pressure):
+            raise ValueError("Base pressure must be greater than top pressure.")
+        
         self._original_params["base_pressure"] = value
 
     @property
@@ -450,11 +495,13 @@ class Atmosphere:
         elif (isinstance(value, (int, float))
               and value < 0):
             raise ValueError("Top pressure value must be positive.")        
-        if (self._base_pressure is not None
-            and value > self._base_pressure):
-            raise ValueError("Top pressure must be smaller than base pressure.")
                 
         self._top_pressure = generate_value(value)
+        
+        if (self._base_pressure is not None
+            and self._top_pressure > self._base_pressure):
+            raise ValueError("Top pressure must be smaller than base pressure.")
+        
         self._original_params["top_pressure"] = value
 
     @property
@@ -547,7 +594,7 @@ class Atmosphere:
             seed = self._seed
         )
 
-    def move_universe(self):
+    def reshuffle(self):
         """
         Regenerates the atmosphere based on original values or range of values.
         """
@@ -729,7 +776,7 @@ class Star:
             "s seed": self._seed
         }
 
-    def move_universe(self):
+    def reshuffle(self):
         """
         Regenerates the star's attributes using the original values.
         """
@@ -890,7 +937,7 @@ class System:
             return False
         return True
 
-    def move_universe(self):
+    def reshuffle(self):
         """
         Regenerates the system's attributes using the original values.
         """
@@ -899,8 +946,8 @@ class System:
                  
         np.random.seed(self._seed)
         self.set_sma(self.original_params["sma"])
-        self.planet.move_universe(atmosphere=True)
-        self.star.move_universe()
+        self.planet.reshuffle(atmosphere=True)
+        self.star.reshuffle()
 
     def make_tm(self):
         """
@@ -915,7 +962,6 @@ class System:
             print("System is not valid. A transmission model cannot be generated.")
             return
                 
-        from astropy.constants import M_jup, M_earth, R_jup, R_earth
         #convert mass and radius to jupiter and earth units
         rconv= R_jup.value/R_earth.value
         mconv= M_jup.value/M_earth.value
@@ -1028,7 +1074,7 @@ class System:
         
         return bin_wn, bin_rprs 
        
-    def generate_observations(self, wn_grid, snr, n_observations):
+    def generate_observations(self, wn_grid, snr, n_observations=1):
         """
         Generate observations with noise based on a wave number grid and save them optionally in a 
         specified format.
@@ -1061,12 +1107,12 @@ class System:
         spec_df = pd.DataFrame(bin_rprs_reshaped, columns=columns)
         
         # Generate dataframe with noisy observations
-        observations = generate_df_SNR_noise(spec_df, snr, n_observations)  
+        observations = generate_df_SNR_noise(spec_df, n_observations, snr)  
         
         return observations
 
     # plots 
-    def plot_spectrum(self,  wn_grid, showfig=False):
+    def plot_spectrum(self,  wn_grid, showfig=True, xscale='linear', syslegend=True):
         """
         Plot the spectrum.
         
@@ -1079,28 +1125,48 @@ class System:
         - ax (matplotlib.axes): Axes of the plot.
 
         """                     
-        spectrum=self.generate_spectrum(wn_grid)
+        wns, spectrum = self.generate_spectrum(wn_grid)
+        wls = 1e4/wns
+
         fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(10000/spectrum[0], spectrum[1])
-        ax.set_xlabel("Wavelength [μm]")
-        ax.set_ylabel("$(r_p/r_s)^2$")
-        
-        #set y low limit 
-        base_rprs= self.transmission.planet.fullRadius**2/self.transmission.star.radius**2
-        ax.axhline(y=base_rprs, alpha=0)
-        
-        ## asign the zscale to spectrum[1]
-        self._zscale= self.transmission.altitude_profile*1e-3
-
-
-        #add other y axis in the right
         ax2 = ax.twinx()
-        ax2.axhline(y=max(self._zscale), alpha=0)
-        ax2.axhline(y=0, alpha=0)
-        #ax2.plot(10000/spectrum[0],self._zscale*np.ones_like(spectrum[0]), alpha=0)
-        ax2.set_ylabel("Altitude [km]")
+        
+        ax.plot(wls, spectrum*1e6)
+        ax2.plot(wls, 
+                 Physics.spectrum2altitude(
+                     spectrum,
+                     self.planet.radius,
+                     self.star.radius),
+                alpha=0)
+        
+        ax.set_xlabel("Wavelength [μm]")
+        ax.set_ylabel("Transit depth [ppm]")
+        ax2.set_ylabel("Effective altitude [km]")
         ax2.tick_params(axis='y')
-                           
+
+        if xscale == "log":
+            ax.set_xscale('log')
+            from matplotlib.ticker import FuncFormatter
+            formatter = FuncFormatter(lambda y, _: '{:.16g}'.format(y))
+            ax.xaxis.set_major_formatter(formatter)
+            formatter = FuncFormatter(lambda y, _: '{:.1g}'.format(y))
+            ax.xaxis.set_minor_formatter(formatter)
+            ax.grid(axis='x', which='minor', ls='--')
+            ax.grid(axis='x', which='major')
+            ax.grid(axis='y', which='major')
+        else:
+            ax.grid()
+
+        ax.margins(x=0)
+    
+        if syslegend:
+            text = ax.text(0.01,0.98,self.__str__(),fontsize=8,
+                verticalalignment='top',transform=ax.transAxes)
+            text.set_bbox(dict(facecolor='w', 
+                            alpha=1, 
+                            edgecolor='w',
+                            boxstyle='round,pad=0.1'))
+            
         if showfig:
             plt.show()
         else:
@@ -1109,7 +1175,7 @@ class System:
         return fig, ax
 
     ## plot contributions
-    def plot_contributions(self, wn_grid, showfig=False, showspectrum=True):
+    def plot_contributions(self, wn_grid, showfig=True, showspectrum=True, xscale='linear', syslegend=True):
         """
         Plot the spectrum for each contribution and molecule.
         
@@ -1123,41 +1189,67 @@ class System:
         - ax (matplotlib.axes): Axes of the plot.
         
         """
-   
-        spectrum=self.generate_contributions(wn_grid)
+        wns, contributions =self.generate_contributions(wn_grid)
+        wls = 1e4/wns
                    
         fig, ax = plt.subplots(figsize=(10, 5))
+
+        # Twin axis showing the scale-height
+        ax2 = ax.twinx()
+        ax2.set_ylabel("Effective altitude [km]")
+        ax2.tick_params(axis='y')
     
-        for aporte in spectrum[1]:
-            for mol in spectrum[1][aporte]:
-                ax.plot(10000/spectrum[0],
-                        spectrum[1][aporte][mol],
+        for aporte in contributions:
+            for mol in contributions[aporte]:
+                ax.plot(wls,
+                        contributions[aporte][mol]*1e6,
                         label=aporte+": "+mol,
                         )
+                ax2.plot(wls,
+                         Physics.spectrum2altitude(
+                             contributions[aporte][mol],
+                             self.planet.radius,self.star.radius
+                            ),
+                         color='c',
+                         alpha=0)
                 
         ax.set_xlabel("Wavelength [μm]")
-        ax.set_ylabel("$(r_p/r_s^2)^2$")
-        #set y low limit 
-        base_rprs= self.transmission.planet.fullRadius**2/self.transmission.star.radius**2
-        ax.axhline(y=base_rprs, alpha=0)
-        # add other y axis in the right with the zscale
-        ax2 = ax.twinx()
-        ax2.axhline(y=max(self._zscale), alpha=0)
-        ax2.axhline(y=0, alpha=0)
-        #ax2.plot(10000/spectrum[0],self._zscale, alpha=0)
-        ax2.set_ylabel("Altitude [km]")
-        ax2.tick_params(axis='y')
+        ax.set_ylabel("Transit depth [ppm]")
         
+        # add other y axis in the right with the zscale
         if showspectrum:
-            ax.plot(10000/spectrum[0], 
-                    self.generate_spectrum(wn_grid)[1],
+            ax.plot(wls, 
+                    self.generate_spectrum(wn_grid)[1]*1e6,
                     label="Total Spectrum",
                     color="black",
                     alpha=0.5,
                     ls="--",
                     )
                 
-        ax.legend()
+        ax.legend(loc='upper right')
+
+        if xscale == "log":
+            ax.set_xscale('log')
+            from matplotlib.ticker import FuncFormatter
+            formatter = FuncFormatter(lambda y, _: '{:.16g}'.format(y))
+            ax.xaxis.set_major_formatter(formatter)
+            formatter = FuncFormatter(lambda y, _: '{:.1g}'.format(y))
+            ax.xaxis.set_minor_formatter(formatter)
+            ax.grid(axis='x', which='minor', ls='--')
+            ax.grid(axis='x', which='major')
+            ax.grid(axis='y', which='major')
+        else:
+            ax.grid()
+
+        ax.margins(x=0)
+    
+        if syslegend:
+            text = ax.text(0.01,0.98,self.__str__(),fontsize=8,
+                verticalalignment='top',transform=ax.transAxes)
+            text.set_bbox(dict(facecolor='w', 
+                            alpha=1, 
+                            edgecolor='w',
+                            boxstyle='round,pad=0.1'))
         
         if showfig:
             plt.show()
@@ -1166,7 +1258,7 @@ class System:
   
         return fig, ax
 
-    def explore_multiverse(self, wn_grid, snr, n_universes, labels=None, header=False,
+    def explore_multiverse(self, wn_grid, snr=10, n_universes=1, labels=None, header=False,
                            n_observations=1, spectra=True, observations=True, path=None):
         """
         Explore the multiverse, generate spectra and observations, and optionally save them in Parquet format.
@@ -1242,7 +1334,7 @@ class System:
             spectra_list.append(current_spec_df)
             
             # Move universe
-            self.move_universe()
+            self.reshuffle()
 
         ## concatenate the list of spectra
         all_spectra_df = pd.concat(spectra_list, axis=0,
@@ -1268,7 +1360,7 @@ class System:
                 all_observations_df_copy=all_observations_df.copy()
                 ## transform the columns to string
                 all_observations_df_copy.columns=all_observations_df_copy.columns.astype(str)
-                all_observations_df_copy.to_parquet(f'{path}_observations.parquet')
+                all_observations_df_copy.to_parquet(f'{path}/multirex_observations.parquet')
             if spectra:
                 ## save the spectra
                 if path is not None:
@@ -1276,7 +1368,7 @@ class System:
                     final_spectra_df_copy=final_spectra_df.copy()
                     ## transform the columns to string
                     final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
-                    final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
+                    final_spectra_df_copy.to_parquet(f'{path}/multirex_spectra.parquet')
                 return dict(
                     spectra=final_spectra_df,
                     observations=all_observations_df
@@ -1291,5 +1383,20 @@ class System:
                 final_spectra_df_copy=final_spectra_df.copy()
                 ## transform the columns to string
                 final_spectra_df_copy.columns=final_spectra_df_copy.columns.astype(str)
-                final_spectra_df_copy.to_parquet(f'{path}_spectra.parquet')
+                final_spectra_df_copy.to_parquet(f'{path}/multirex_spectra.parquet')
             return final_spectra_df
+        
+    def __str__(self):
+
+        composition_str = ""
+        for gas, mix_ratio in self.planet.atmosphere.composition.items():
+            composition_str += f"{gas}: {1e6*10**mix_ratio:.2g} ppm "
+
+        str = rf"""System:
+Star: {self.star.temperature:.1f} K, {self.star.radius:.2f} $R_\odot$, {self.star.mass:.2f} $M_\odot$
+Planet: {self.planet.radius:.2f} $R_\oplus$, {self.planet.mass:.2f} $M_\oplus$
+Semimajor axis: {self.sma:.2f} au
+Atmosphere: {self.planet.atmosphere.temperature:.1f} K, {self.planet.atmosphere.base_pressure:.0f} Pa - {self.planet.atmosphere.top_pressure:.0f} Pa, {self.planet.atmosphere.fill_gas} fill gas
+Composition: {composition_str}"""
+        return str
+    

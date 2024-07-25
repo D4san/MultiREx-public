@@ -1,3 +1,6 @@
+# MultiREx
+## Planetary transmission spectra generator
+
 ## Description
 
 This folder contains the notebooks and data necessary to replicate the results and plots of the scientific article titled "Machine-assisted classification of potential biosignatures in Earth-like exoplanets using low signal-to-noise ratio transmission spectra." Here, you will find all the procedures, scripts, and data files used in the numerical experiments presented in the study.
