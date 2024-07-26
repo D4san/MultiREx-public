@@ -63,6 +63,6 @@ setuptools.setup(
     # ######################################################################
     include_package_data=True,
     package_data={'': ['data/*.*', 'tests/*.*']},
-    scripts=['multirex/scripts/imultirex','multirex/scripts/multirex-test.py'],
+    #scripts=['multirex/scripts/imultirex','multirex/scripts/multirex-test.py'],
 )
 
