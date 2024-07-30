@@ -7,8 +7,8 @@
 [![license](https://img.shields.io/pypi/l/multirex)](https://pypi.org/project/multirex/)
 [![implementation](https://img.shields.io/pypi/implementation/multirex)](https://pypi.org/project/multirex/)
 [![pythonver](https://img.shields.io/pypi/pyversions/multirex)](https://pypi.org/project/multirex/)
+[![arXiv](http://img.shields.io/badge/arXiv-2407.19167-orange.svg?style=flat)](http://arxiv.org/abs/2407.19167)
 <!-- 
-[![arXiv](http://img.shields.io/badge/arXiv-2207.08636-orange.svg?style=flat)](http://arxiv.org/abs/2207.08636)
 [![ascl](https://img.shields.io/badge/ascl-2205.016-blue.svg?colorB=262255)](https://ascl.net/2205.016)
 -->
 
@@ -16,7 +16,8 @@ MultiREx is a Python library designed for generating synthetic exoplanet transmi
 
 For the science behind the model please refer to the following paper:
 
-> David S. Duque-Castaño, Jorge I. Zuluaga, and Lauren Flor-Torres (2024), **Machine-assisted classification of potential biosignatures in earth-like exoplanets using low signal-to-noise ratio transmission spectra**, submitted to MNRAS.
+> David S. Duque-Castaño, Jorge I. Zuluaga, and Lauren Flor-Torres (2024), **Machine-assisted classification of potential biosignatures in earth-like exoplanets using low signal-to-noise ratio transmission spectra**, submitted to MNRAS, [arXiv:2407.19167](https://arxiv.org/abs/2407.19167).
+
 <!--
 [Astronomy and Computing 40 (2022) 100623](https://www.sciencedirect.com/science/article/pii/S2213133722000476), [arXiv:2207.08636](https://arxiv.org/abs/2207.08636).
 -->
