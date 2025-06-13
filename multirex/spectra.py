@@ -47,6 +47,7 @@ from taurex.model import TransmissionModel
 from taurex.planet import Planet as tauP
 from taurex.stellar import PhoenixStar, BlackbodyStar
 from taurex.temperature import Isothermal
+from taurex_ggchem import GGChem # Import GGChem
 
 import multirex.utils as Util
 
@@ -326,6 +327,32 @@ class Atmosphere:
     """Represents a plane parallel atmosphere with specified properties and composition.
     
     This class allows you to define an atmosphere with properties like temperature
+    and pressure, as well as its chemical composition. The composition can be specified
+    manually molecule by molecule or by using an equilibrium chemistry model like GGChem.
+    
+    Attributes:
+        seed (int): Random seed for reproducibility.
+        temperature (float): Temperature of the atmosphere in Kelvin.
+        base_pressure (float): Base (bottom) pressure of the atmosphere in Pa.
+        top_pressure (float): Top pressure of the atmosphere in Pa.
+        composition (dict): Composition of the atmosphere with gases and their
+            mixing ratios in log10 values (e.g., {"H2O": -3, "CO2": -2}).
+            Only used if chemistry_type is 'manual'.
+        fill_gas (str or list): Gas or list of gases used as filler in the
+            atmosphere composition to ensure the total mixing ratio equals 1.
+            Only used if chemistry_type is 'manual'.
+        chemistry_type (str): Type of chemistry model to use ('manual' or 'ggchem').
+        ggchem_params (dict): Parameters for GGChem if chemistry_type is 'ggchem'.
+        original_params (dict): The original parameters used to initialize the
+            atmosphere, including any ranges specified for random generation.
+    
+    Note:
+        The mixing ratios in the composition dictionary are in log10 scale.
+        For example, a value of -3 corresponds to a mixing ratio of 10^-3 = 0.001.
+    """
+    """Represents a plane parallel atmosphere with specified properties and composition.
+    
+    This class allows you to define an atmosphere with properties like temperature
     and pressure, as well as its chemical composition. The composition is specified
     as a dictionary of gases with their mixing ratios in log10 values. The class
     supports both fixed values and random generation from ranges.
@@ -348,7 +375,8 @@ class Atmosphere:
     """
     def __init__(self, seed=None, temperature=None, 
                  base_pressure=None, top_pressure=None, 
-                 composition=None, fill_gas=None):        
+                 composition=None, fill_gas=None,
+                 chemistry_type='manual', ggchem_params=None):
         """Initialize an Atmosphere object.
         
         Args:
@@ -362,8 +390,14 @@ class Atmosphere:
             composition (dict, optional): Composition of the atmosphere with gases and
                 their mixing ratios in log10 values. For example: {"H2O": -3, "CO2": [-2,-1]}
                 where values can be fixed or ranges for random generation.
+                Used only if chemistry_type is 'manual'.
             fill_gas (str or list, optional): Gas or list of gases used as filler in the
                 atmosphere composition to ensure the total mixing ratio equals 1.
+                Used only if chemistry_type is 'manual'.
+            chemistry_type (str, optional): Type of chemistry model to use. 
+                Defaults to 'manual'. Can be 'ggchem'.
+            ggchem_params (dict, optional): Parameters for GGChem if chemistry_type is 'ggchem'.
+                Example: {'metallicity': 1.0, 'selected_elements': ['C','O','H','N'], ...}
         
         Note:
             The base_pressure must be greater than top_pressure, as base refers to
@@ -376,7 +410,9 @@ class Atmosphere:
             base_pressure = base_pressure,
             top_pressure = top_pressure,
             composition=  composition if composition is not None else dict(),
-            fill_gas = fill_gas
+            fill_gas = fill_gas,
+            chemistry_type = chemistry_type, # New attribute
+            ggchem_params = ggchem_params # New attribute
         )
 
         self._seed = seed if seed is not None else int(time.time())
@@ -387,6 +423,8 @@ class Atmosphere:
         self._base_pressure = None
         self._top_pressure = None
         self._fill_gas = fill_gas
+        self._chemistry_type = chemistry_type # New attribute
+        self._ggchem_params = ggchem_params if ggchem_params is not None else {} # New attribute, ensure it's a dict
         
         # Use setter methods to properly initialize with validation
         if temperature is not None:
@@ -395,10 +433,17 @@ class Atmosphere:
             self.set_base_pressure(base_pressure)
         if top_pressure is not None:
             self.set_top_pressure(top_pressure)
-        if composition is not None:
-            self.set_composition(composition)
-        else:
-            self._composition = dict()
+        if self.chemistry_type == 'manual':
+            if composition is not None:
+                self.set_composition(composition)
+            else:
+                self._composition = dict()
+        elif self.chemistry_type == 'ggchem':
+            self._composition = {} # Manual composition not used with GGChem
+            if composition is not None:
+                warnings.warn("Manual 'composition' provided but chemistry_type is 'ggchem'. Manual composition will be ignored.")
+            if fill_gas is not None:
+                 warnings.warn("Manual 'fill_gas' provided but chemistry_type is 'ggchem'. Manual fill_gas will be ignored.")
             
     @property
     def original_params(self):
@@ -508,6 +553,13 @@ class Atmosphere:
         gases (dict): Composition of the atmosphere with gases and mix ratios in log10 values. 
         (eg.{"H2O":  -3, "CO2": [-2,-1]})
         """
+        # If using GGChem, manual composition setting is ignored or handled differently.
+        if self.chemistry_type == 'ggchem':
+            warnings.warn("Composition is managed by GGChem when chemistry_type is 'ggchem'. Manual composition setting will be ignored.")
+            self._composition = {}
+            self._original_params["composition"] = {}
+            return
+
         self._composition = dict()
         for gas, mix_ratio in gases.items():
             self.add_gas(gas, mix_ratio)
@@ -535,6 +587,11 @@ class Atmosphere:
         gas (str): Gas name.
         mix_ratio (float or tuple): Mix ratio of the gas in log10.
         """
+        # If using GGChem, manual gas addition is not applicable.
+        if self.chemistry_type == 'ggchem':
+            warnings.warn("Cannot add gas manually when chemistry_type is 'ggchem'.")
+            return
+
         if gas in self._composition:
             old_value = self._composition[gas]
             print((
@@ -571,6 +628,12 @@ class Atmosphere:
         Validates that the sum of gas mix ratios in the atmosphere composition does not exceed 1.
         Also checks if the maximum possible values from ranges could exceed 1 and issues a warning.
         """
+        # If using GGChem, this validation might not be applicable or needs adjustment.
+        if self.chemistry_type == 'ggchem':
+            # GGChem handles its own internal consistency for elemental abundances.
+            # Manual mix ratio validation is skipped.
+            return
+
         # Convert log values to actual mixing ratios for validation
         actual_mix_ratios = [10**value for value in self._composition.values()]
         total_mix_ratio = sum(actual_mix_ratios)
@@ -608,7 +671,9 @@ class Atmosphere:
             top_pressure = self._top_pressure,
             composition = self._composition,
             fill_gas = self._fill_gas,
-            seed = self._seed
+            seed = self._seed,
+            chemistry_type = self._chemistry_type, # New attribute
+            ggchem_params = self._ggchem_params # New attribute
         )
 
     def reshuffle(self):
@@ -620,8 +685,20 @@ class Atmosphere:
         self.set_temperature(self._original_params["temperature"])
         self.set_base_pressure(self._original_params["base_pressure"])
         self.set_top_pressure(self._original_params["top_pressure"])
-        self.set_composition(self._original_params.get("composition", {}))
-        self.set_fill_gas(self._original_params["fill_gas"])
+        self.set_chemistry_type(self._original_params.get("chemistry_type", 'manual')) # New attribute
+        self.set_ggchem_params(self._original_params.get("ggchem_params", {})) # New attribute
+        
+        if self.chemistry_type == 'manual':
+            self.set_composition(self._original_params.get("composition", {}))
+            self.set_fill_gas(self._original_params.get("fill_gas"))
+        elif self.chemistry_type == 'ggchem':
+            # For GGChem, composition and fill_gas are managed by GGChem itself.
+            # Clear manual composition and fill_gas to avoid conflicts.
+            self._composition = {}
+            self._original_params['composition'] = {}
+            self._fill_gas = None 
+            self._original_params['fill_gas'] = None
+            # GGChem parameters are set via ggchem_params, no further action here unless they need randomization.
         
     def validate(self):
         """
@@ -673,6 +750,38 @@ class Atmosphere:
             state (dict): The state dictionary to restore.
         """
         self.__dict__.update(state)
+
+    @property
+    def chemistry_type(self):
+        """Get the type of chemistry model used ('manual' or 'ggchem')."""
+        return self._chemistry_type
+
+    def set_chemistry_type(self, value):
+        """Set the type of chemistry model.
+        
+        Args:
+            value (str): Chemistry type, e.g., 'manual' or 'ggchem'.
+        """
+        if value not in ['manual', 'ggchem']:
+            raise ValueError("chemistry_type must be 'manual' or 'ggchem'")
+        self._chemistry_type = value
+        self._original_params["chemistry_type"] = value
+
+    @property
+    def ggchem_params(self):
+        """Get the parameters for GGChem (if chemistry_type is 'ggchem')."""
+        return self._ggchem_params
+
+    def set_ggchem_params(self, value):
+        """Set the parameters for GGChem.
+        
+        Args:
+            value (dict): Dictionary of parameters for GGChem.
+        """
+        if not isinstance(value, dict) and value is not None:
+            raise ValueError("ggchem_params must be a dictionary or None")
+        self._ggchem_params = value if value is not None else {}
+        self._original_params["ggchem_params"] = value
 
 
 class Planet:
@@ -1305,13 +1414,45 @@ class System:
         # Taurex temperature model
         tautemperature=Isothermal(T=self.planet.atmosphere.temperature)
         
-        ## Taurex chemistry        
-        tauchem=TaurexChemistry(fill_gases=self.planet.atmosphere.fill_gas)
-        for gas, mix_ratio in self.planet.atmosphere.composition.items():
-            # Convert actual log10 mixing ratio to value for TauREx
-            mix_ratio = 10**mix_ratio
-            tauchem.addGas(ConstantGas(molecule_name=gas,
-                                        mix_ratio=mix_ratio))
+        ## Taurex chemistry
+        atmosphere = self.planet.atmosphere
+        if atmosphere.chemistry_type == 'ggchem':
+            if not atmosphere.ggchem_params:
+                raise ValueError("ggchem_params must be provided in Atmosphere when chemistry_type is 'ggchem'.")
+            # Ensure ggchem_params is a dictionary before unpacking
+            current_ggchem_params = atmosphere.ggchem_params.copy() if isinstance(atmosphere.ggchem_params, dict) else {}
+            
+            # Here you could add logic to generate random values for ggchem_params if they are defined as ranges
+            # For example, if current_ggchem_params['metallicity'] = (0.5, 1.5)
+            # then: current_ggchem_params['metallicity'] = Physics.generate_value(current_ggchem_params['metallicity'])
+            # This requires Physics.generate_value to be compatible or a new helper function.
+            # For now, assuming ggchem_params contains direct values.
+            
+            # Validate required GGChem parameters (example)
+            required_gg_params = ['metallicity', 'selected_elements', 'ratio_elements', 'abundance_profile', 'ratios_to_O']
+            for req_param in required_gg_params:
+                if req_param not in current_ggchem_params:
+                    #warnings.warn(f"Required GGChem parameter '{req_param}' not found in ggchem_params. Using default if available or may error.")
+                    pass # GGChem might have defaults, or raise its own error. Better to let GGChem handle this.
+            
+            try:
+                tauchem = GGChem(**current_ggchem_params)
+            except TypeError as e:
+                raise ValueError(f"Error initializing GGChem with parameters {current_ggchem_params}: {e}. Ensure all parameters are valid for GGChem.")
+        
+        elif atmosphere.chemistry_type == 'manual':
+            tauchem = TaurexChemistry(fill_gases=atmosphere.fill_gas)
+            if atmosphere.composition:
+                for gas, mix_ratio_log10 in atmosphere.composition.items():
+                    # Convert log10 mixing ratio to actual value for TauREx
+                    actual_mix_ratio = 10**mix_ratio_log10
+                    tauchem.addGas(ConstantGas(molecule_name=gas,
+                                                mix_ratio=actual_mix_ratio))
+            elif not atmosphere.fill_gas:
+                # If no composition and no fill_gas, TaurexChemistry might be empty or default to something.
+                warnings.warn("Manual chemistry selected with no composition and no fill_gas. TaurexChemistry might be empty or use defaults.")
+        else:
+            raise ValueError(f"Unknown chemistry_type: {atmosphere.chemistry_type}. Must be 'manual' or 'ggchem'.")
         
         ## Transmission model
         tm = TransmissionModel(
