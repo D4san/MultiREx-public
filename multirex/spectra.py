@@ -702,19 +702,29 @@ class Atmosphere:
         
     def validate(self):
         """
-        Validates the atmosphere's essential properties are defined, allowing for an undefined composition if fill_gas is present.
+        Validates the atmosphere's essential properties are defined.
+        If chemistry_type is 'manual', fill_gas is also required.
+        If chemistry_type is 'ggchem', fill_gas is not required.
         """
         essential_attrs = [
             '_temperature', '_base_pressure', 
-            '_top_pressure', '_fill_gas'
+            '_top_pressure'
             ]        
+        # Add _fill_gas to essential_attrs only if chemistry_type is 'manual'
+        if self.chemistry_type == 'manual':
+            essential_attrs.append('_fill_gas')
+            
         missing_attrs = [
             attr for attr in essential_attrs 
             if getattr(self, attr) is None
             ]
         if missing_attrs:
-            print("Atmosphere Missing attributes:",
-                  [attr[1:] for attr in missing_attrs])
+            # Provide more specific feedback if fill_gas is missing for manual chemistry
+            if '_fill_gas' in missing_attrs and self.chemistry_type == 'manual':
+                print("Atmosphere Missing attributes: fill_gas is required when chemistry_type is 'manual'.")
+            else:
+                print("Atmosphere Missing attributes:",
+                    [attr[1:] for attr in missing_attrs if attr != '_fill_gas' or self.chemistry_type == 'manual'])
             return False
 
         #valid ranges for temperature, base_pressure, and top_pressure
@@ -1762,6 +1772,78 @@ class System:
         else:
             plt.close(fig)
   
+        return fig, ax
+
+    def plot_mixing_ratio(self, list_gases=None, showfig=True,  min_mix=None):
+        """
+        Plot mixing ratio profiles.
+
+        Args:
+            list_gases (list of str, optional): Subset of active gases to plot.
+                If None, plot all gases in self.transmission.chemistry.activeGases.
+            showfig (bool): Whether to call plt.show() after plotting.
+            min_mix (float, optional): Minimum mixing ratio (in linear units) to set as lower bound on the X-axis (log scale).
+                If None, X-axis lower bound is chosen automatically.
+
+        Returns:
+            fig (matplotlib.figure.Figure): The created figure.
+            ax (matplotlib.axes.Axes): The primary axes object.
+
+        """
+        import warnings
+        import matplotlib.pyplot as plt
+
+        # Ensure a transmission model exists
+        if self._transmission is None:
+            raise ValueError("Transmission model not generated. Call make_tm() first.")
+        chem = self._transmission.chemistry
+        active = chem.activeGases             # list of gas names
+        mix_profiles = chem.activeGasMixProfile  # array of shape (n_gases, n_levels)
+
+        # Determine which gases to plot (using indices)
+        if list_gases is None:
+            selected = list(range(len(active)))
+        else:
+            selected = []
+            for i, gas in enumerate(active):
+                if gas in list_gases:
+                    selected.append(i)
+            for gas in list_gases:
+                if gas not in active:
+                    warnings.warn(f"Gas '{gas}' not active; skipping.")
+        if not selected:
+            raise ValueError("No valid gases to plot.")
+
+        # Extract profiles: pressure [Pa] and altitude [km]
+        P = self._transmission.pressureProfile
+
+        # Create figure and primary axis
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        # Plot mixing ratio for each selected gas
+        for idx in selected:
+            gas = active[idx]
+            mix = mix_profiles[idx]
+            ax.plot(mix, P, label=gas)
+
+        # Format primary axis: mixing ratio and pressure
+        ax.set_xlabel("Mixing Ratio (log scale)")
+        ax.set_xscale('log')
+        ax.set_xlim(right = 1)
+        if min_mix is not None:
+            ax.set_xlim(left=min_mix)
+        ax.set_ylabel("Pressure [Pa]")
+        ax.set_yscale('log')
+        ax.invert_yaxis()
+        ax.legend()
+        ax.grid(True, which='both', linestyle='--', alpha=0.5)
+
+        # Show or close figure
+        if showfig:
+            plt.show()
+        else:
+            plt.close(fig)
+
         return fig, ax
 
     def clone_shuffled(self):
