@@ -9,6 +9,7 @@ requires = [
     "gdown",
     "pyarrow",
     "joblib",
-    "astropy"
+    "astropy",
+    "taurex-ggchem",
 ]
 build-backend = "setuptools.build_meta"
