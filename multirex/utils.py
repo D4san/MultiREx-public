@@ -22,7 +22,9 @@ import numpy as np
 import gdown
 import os
 import zipfile
-from taurex.cache import OpacityCache
+import pathlib
+import itertools
+from taurex.cache import OpacityCache, CIACache
 
 def get_stellar_phoenix(path=""):
     """Download the Phoenix stellar spectra from the Google Drive link and
@@ -122,6 +124,133 @@ def get_gases(path=""):
     OpacityCache().clear_cache()
     OpacityCache().set_opacity_path(molecule_path)
     
+def get_CIAs(pairs=None, atmosphere=None, path="", session=None):
+    """Download and configure CIA data for TauREx.
+
+    - pairs: list of CIA pairs, e.g. ['H2-H2','H2-He'] or [('H2','H2'),('H2','He')]
+    - atmosphere: Atmosphere-like object; if provided and pairs is None, infer from
+      `atmosphere.cia` (if set) or from `composition` and `fill_gas`.
+    - path: destination directory for CIA files; if empty, uses env `TAUREX_CIA_PATH`
+      or defaults to `./data/cia` relative to current working directory.
+    - session: optional requests.Session for authenticated downloads.
+
+    Returns:
+        (saved_files, normalized_pairs): list of saved file paths (str) and list of
+        normalized pair strings like ['H2-H2','H2-He'].
+    """
+    # Resolve destination directory
+    if path == "":
+        env_path = os.environ.get("TAUREX_CIA_PATH", "")
+        path = env_path if env_path else os.path.join(os.getcwd(), "data", "cia")
+    os.makedirs(path, exist_ok=True)
+    cia_dir = pathlib.Path(path).resolve()
+
+    # Helper normalizers/parsers
+    def _normalize_species(s):
+        return s.replace(" ", "").upper()
+
+    def _parse_pair_str(spec_str):
+        parts = spec_str.replace(" ", "").upper().replace("_","-").split("-")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid CIA pair spec '{spec_str}', expected format 'A-B'")
+        a,b = parts
+        return tuple(sorted((a,b)))
+
+    def _normalize_pairs(pairs_input):
+        normalized = []
+        for p in pairs_input:
+            if isinstance(p, str):
+                normalized.append(_parse_pair_str(p))
+            elif isinstance(p, (tuple, list)) and len(p) == 2:
+                a,b = p
+                normalized.append(tuple(sorted((_normalize_species(a), _normalize_species(b)))))
+            else:
+                raise ValueError("Each CIA pair must be a string 'A-B' or 2-item tuple/list")
+        return sorted(set(normalized))
+
+    # Minimal mapping (extend with more pairs as needed)
+    PAIR_TO_FILE = {
+        ("H2","H2"):   "H2-H2_2011.cia",
+        ("H2","HE"):   "H2-He_2011.cia",
+        ("H2","CH4"):  "H2-CH4_eq_2011.cia",
+        ("N2","N2"):   "N2-N2_2021.cia",
+        ("O2","O2"):   "O2-O2_2024.cia",
+        ("O2","N2"):   "O2-N2_2024.cia",
+        ("N2","H2"):   "N2-H2_2024.cia",
+        ("CO2","CO2"): "CO2-CO2_2024.cia",
+        ("CO2","H2"):  "CO2-H2_2024.cia",
+        ("CO2","HE"):  "CO2-He_2018.cia",
+        ("CH4","HE"):  "CH4-He_2018.cia",
+    }
+
+    def _infer_pairs_from_atmosphere(atm):
+        # If atmosphere has explicit CIA pairs, use them
+        if hasattr(atm, "cia") and atm.cia:
+            return _normalize_pairs(atm.cia)
+        comp = getattr(atm, "composition", {}) or {}
+        fill = getattr(atm, "fill_gas", []) or []
+        if isinstance(fill, str):
+            fill = [fill]
+        active = set(_normalize_species(g) for g in list(comp.keys()) + list(fill))
+        whitelist = {"H2","HE","N2","O2","CO2","CH4"}
+        species = sorted(active & whitelist)
+        pairs = set()
+        for a in species:
+            for b in species:
+                key = tuple(sorted((a,b)))
+                if key in PAIR_TO_FILE:
+                    pairs.add(key)
+        return sorted(pairs)
+
+    # Decide target pairs
+    if pairs is not None:
+        normalized_pairs = _normalize_pairs(pairs)
+    elif atmosphere is not None:
+        normalized_pairs = _infer_pairs_from_atmosphere(atmosphere)
+    else:
+        raise ValueError("Provide 'pairs' (list) or 'atmosphere' to determine CIA pairs")
+
+    # Local import of requests to avoid hard dep when not used
+    if session is None:
+        try:
+            import requests
+        except ImportError:
+            raise ImportError("'requests' is required to download CIA files. Install requests or pass a Session.")
+        s = requests.Session()
+    else:
+        s = session
+
+    CIA_BASE = "https://hitran.org/data/CIA"
+    saved_files = []
+    for pair in normalized_pairs:
+        if pair not in PAIR_TO_FILE:
+            print(f"Skipping CIA pair {pair}: no filename mapping available")
+            continue
+        filename = PAIR_TO_FILE[pair]
+        dest = cia_dir / filename
+        if dest.exists():
+            saved_files.append(dest)
+            continue
+        url = f"{CIA_BASE}/{filename}"
+        try:
+            r = s.get(url, timeout=60)
+            r.raise_for_status()
+            dest.write_bytes(r.content)
+            saved_files.append(dest)
+        except Exception as e:
+            print(f"Failed to download {filename} ({pair}): {e}")
+
+    # Configure TauREx CIA cache
+    cache = CIACache()
+    if hasattr(cache, 'clear_cache'):
+        cache.clear_cache()
+    if hasattr(cache, 'set_cia_path'):
+        cache.set_cia_path(str(cia_dir))
+    # Pretty-case species names for returned pair strings
+    def _pretty(s):
+        return "He" if s == "HE" else s
+    return [str(p) for p in saved_files], [f"{_pretty(a)}-{_pretty(b)}" for a,b in normalized_pairs]
+
 def list_gases():
     """List all available gases in the opacity database.
     

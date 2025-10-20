@@ -1,6 +1,10 @@
 import numpy as np
 import pytest
+import importlib.util
+import pandas as pd
 from multirex.spectra import Planet, Atmosphere, Star, System, Physics
+
+GG_AVAILABLE = importlib.util.find_spec("taurex_ggchem") is not None
 
 def create_sample_system():
     # Helper function to create a system with fixed parameters
@@ -10,6 +14,20 @@ def create_sample_system():
     star = Star(seed=42, temperature=5800, radius=1, mass=1)
     system = System(planet, star, seed=42, sma=1.0)
     return system
+
+
+def test_explore_parameter_space_absence_case():
+    system = create_sample_system()
+    wn_grid = Physics.wavenumber_grid(1.0, 2.0, 10)
+    parameter_space = {
+        'planet.atmosphere.composition.CH4': {'min': -6, 'max': -6, 'n': 1, 'include_absence': True}
+    }
+    df = system.explore_parameter_space(wn_grid, parameter_space, snr=10, header=True,
+                                        spectra=True, observations=False, n_jobs=1)
+    # Ensure 'atm CH4' column exists and has NaN for the absence row
+    assert 'atm CH4' in df.columns
+    assert df['atm CH4'].isna().sum() == 1
+    assert df['atm CH4'].notna().sum() == 1
 
 def test_system_make_tm():
     system = create_sample_system()
@@ -24,6 +42,8 @@ def test_generate_spectrum():
     bin_wn, bin_rprs = system.generate_spectrum(wn_grid)
     assert isinstance(bin_wn, np.ndarray)
     assert isinstance(bin_rprs, np.ndarray)
+
+# GGChem-specific helpers and tests
 
 def create_sample_system_ggchem():
     # Helper function to create a system with GGChem
@@ -42,18 +62,15 @@ def create_sample_system_ggchem():
     system = System(planet, star, seed=103, sma=0.05)
     return system
 
+@pytest.mark.skipif(not GG_AVAILABLE, reason="taurex_ggchem not installed")
 def test_system_make_tm_with_ggchem():
     """Test that make_tm() runs successfully with GGChem."""
     system = create_sample_system_ggchem()
     # Call make_tm() and verify that the transmission model is generated
     system.make_tm()
     assert system.transmission is not None
-    # Check if the chemistry object in Taurex is indeed GGChem
-    # This requires Taurex model to be built and accessible
-    # For now, we assume if make_tm() runs without error with 'ggchem', it's a good sign.
-    # A more specific check would be: isinstance(system.transmission.chemistry, GGChem)
-    # but this depends on how Taurex structures its model and if GGChem is directly accessible.
 
+@pytest.mark.skipif(not GG_AVAILABLE, reason="taurex_ggchem not installed")
 def test_generate_spectrum_with_ggchem():
     """Test that a spectrum can be generated with GGChem."""
     system = create_sample_system_ggchem()

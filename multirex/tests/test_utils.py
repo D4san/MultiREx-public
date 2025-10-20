@@ -3,8 +3,8 @@
 import os
 import pytest
 import unittest.mock as mock
-from multirex.utils import get_stellar_phoenix, get_gases, list_gases
-from taurex.cache import OpacityCache
+from multirex.utils import get_stellar_phoenix, get_gases, list_gases, get_CIAs
+from taurex.cache import OpacityCache, CIACache
 
 # Mock tests to avoid actual downloads during testing
 
@@ -63,3 +63,40 @@ def test_list_gases():
             assert mock_print.call_count == 2  # Two print calls in the function
             # Check that the second print call contains the list of molecules
             assert mock_print.call_args_list[1][0][0] == mock_molecules
+
+# New tests for CIA downloader
+
+class _FakeResponse:
+    def __init__(self, content=b'dummy'):
+        self.content = content
+    def raise_for_status(self):
+        return None
+
+class _FakeSession:
+    def get(self, url, timeout=60):
+        return _FakeResponse()
+
+def test_get_CIAs_download_and_cache_config(tmp_path):
+    dest = tmp_path / "cia"
+    # Ensure CIACache path methods are called
+    with mock.patch.object(CIACache, 'clear_cache', create=True) as mock_clear:
+        with mock.patch.object(CIACache, 'set_cia_path', create=True) as mock_set:
+            files, pairs = get_CIAs(pairs=['H2-H2'], path=str(dest), session=_FakeSession())
+            # Check returned pairs normalization
+            assert pairs == ['H2-H2']
+            # Check file was saved with expected filename
+            expected = dest / 'H2-H2_2011.cia'
+            assert expected.exists()
+            assert expected.is_file()
+            # Cache methods called
+            assert mock_clear.called
+            mock_set.assert_called_once()
+            assert mock_set.call_args[0][0] == str(dest.resolve())
+
+def test_get_CIAs_normalizes_pair_strings(tmp_path):
+    dest = tmp_path / "cia2"
+    files, pairs = get_CIAs(pairs=['h2_he', 'HE-H2'], path=str(dest), session=_FakeSession())
+    # Should normalize to one unique pair 'H2-He'
+    assert pairs == ['H2-He']
+    expected = dest / 'H2-He_2011.cia'
+    assert expected.exists()

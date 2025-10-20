@@ -42,12 +42,18 @@ import taurex.log
 from taurex.binning import FluxBinner, SimpleBinner
 from taurex.cache import OpacityCache, CIACache
 from taurex.chemistry import TaurexChemistry, ConstantGas
-from taurex.contributions import AbsorptionContribution, RayleighContribution
+from taurex.contributions import AbsorptionContribution, RayleighContribution, CIAContribution
 from taurex.model import TransmissionModel
 from taurex.planet import Planet as tauP
 from taurex.stellar import PhoenixStar, BlackbodyStar
 from taurex.temperature import Isothermal
-from taurex_ggchem import GGChem # Import GGChem
+# Importar GGChem si está disponible
+try:
+    from taurex_ggchem import GGChem
+    GGCHEM_AVAILABLE = True
+except Exception:
+    GGChem = None
+    GGCHEM_AVAILABLE = False
 
 import multirex.utils as Util
 
@@ -61,6 +67,18 @@ taurex.log.disableLogging()
 OpacityCache().clear_cache()
 xsec_path = os.path.join(os.path.dirname(__file__), 'data')
 OpacityCache().set_opacity_path(xsec_path)
+
+# Configure CIA cache if data directory exists
+try:
+    _cia_cache = CIACache()
+    if hasattr(_cia_cache, "clear_cache"):
+        _cia_cache.clear_cache()
+    cia_path = os.path.join(os.path.dirname(__file__), 'data', 'cia')
+    if os.path.isdir(cia_path) and hasattr(_cia_cache, "set_cia_path"):
+        _cia_cache.set_cia_path(cia_path)
+except Exception:
+    # If CIACache API differs or is unavailable, skip configuration gracefully
+    pass
 
 #########################################
 # MAIN CLASSES
@@ -376,7 +394,7 @@ class Atmosphere:
     def __init__(self, seed=None, temperature=None, 
                  base_pressure=None, top_pressure=None, 
                  composition=None, fill_gas=None,
-                 chemistry_type='manual', ggchem_params=None):
+                 chemistry_type='manual', ggchem_params=None, cia=None):
         """Initialize an Atmosphere object.
         
         Args:
@@ -398,6 +416,7 @@ class Atmosphere:
                 Defaults to 'manual'. Can be 'ggchem'.
             ggchem_params (dict, optional): Parameters for GGChem if chemistry_type is 'ggchem'.
                 Example: {'metallicity': 1.0, 'selected_elements': ['C','O','H','N'], ...}
+            cia (list, optional): List of CIA pairs like ['H2-H2'] or ['H2-H2','H2-He'].
         
         Note:
             The base_pressure must be greater than top_pressure, as base refers to
@@ -412,7 +431,8 @@ class Atmosphere:
             composition=  composition if composition is not None else dict(),
             fill_gas = fill_gas,
             chemistry_type = chemistry_type, # New attribute
-            ggchem_params = ggchem_params # New attribute
+            ggchem_params = ggchem_params, # New attribute
+            cia = cia
         )
 
         self._seed = seed if seed is not None else int(time.time())
@@ -425,6 +445,7 @@ class Atmosphere:
         self._fill_gas = fill_gas
         self._chemistry_type = chemistry_type # New attribute
         self._ggchem_params = ggchem_params if ggchem_params is not None else {} # New attribute, ensure it's a dict
+        self._cia = None
         
         # Use setter methods to properly initialize with validation
         if temperature is not None:
@@ -444,6 +465,9 @@ class Atmosphere:
                 warnings.warn("Manual 'composition' provided but chemistry_type is 'ggchem'. Manual composition will be ignored.")
             if fill_gas is not None:
                  warnings.warn("Manual 'fill_gas' provided but chemistry_type is 'ggchem'. Manual fill_gas will be ignored.")
+        # Set CIA pairs if provided
+        if cia is not None:
+            self.set_cia(cia)
             
     @property
     def original_params(self):
@@ -579,6 +603,24 @@ class Atmosphere:
         self._fill_gas = gas
         self._original_params["fill_gas"] = gas
 
+    @property
+    def cia(self):
+        return self._cia
+
+    def set_cia(self, value):
+        """
+        Sets CIA pairs for collision-induced absorption.
+        Parameters:
+        value (list): List of pair identifiers like 'H2-H2'.
+        """
+        if value is None:
+            self._cia = None
+        elif isinstance(value, list) and all(isinstance(v, str) for v in value):
+            self._cia = value
+        else:
+            raise ValueError("cia must be a list of strings or None")
+        self._original_params["cia"] = value
+
     def add_gas(self, gas, mix_ratio):
         """
         Adds a gas to the atmosphere composition with a log10 mix ratio.
@@ -671,6 +713,7 @@ class Atmosphere:
             top_pressure = self._top_pressure,
             composition = self._composition,
             fill_gas = self._fill_gas,
+            cia = self._cia,
             seed = self._seed,
             chemistry_type = self._chemistry_type, # New attribute
             ggchem_params = self._ggchem_params # New attribute
@@ -699,6 +742,9 @@ class Atmosphere:
             self._fill_gas = None 
             self._original_params['fill_gas'] = None
             # GGChem parameters are set via ggchem_params, no further action here unless they need randomization.
+        
+        # Reset CIA to original value (supports both manual and ggchem chemistry)
+        self.set_cia(self._original_params.get("cia"))
         
     def validate(self):
         """
@@ -1474,6 +1520,9 @@ class System:
             atm_min_pressure=self.planet.atmosphere.top_pressure)
         tm.add_contribution(AbsorptionContribution())
         tm.add_contribution(RayleighContribution())
+        # Add CIA contribution if CIA pairs are configured
+        if getattr(self.planet.atmosphere, 'cia', None):
+            tm.add_contribution(CIAContribution(cia_pairs=self.planet.atmosphere.cia))
         tm.build()
         
         self._transmission=tm
@@ -2063,7 +2112,11 @@ class System:
                     - A single value
                     - A list of values
                     - A dict with keys 'min', 'max', 'n', and optionally 'distribution'
-                    ('linear' or 'log')
+                      ('linear' or 'log'). For composition keys (e.g.,
+                      'planet.atmosphere.composition.CO2'), you may also set
+                      'include_absence': True to include the case where the gas is
+                      removed from the atmosphere. In that case, the header will contain
+                      'atm CO2' with NaN when the gas is absent.
             snr (float, optional): Signal-to-noise ratio. Defaults to 10.
             labels (list, optional): Labels for atmospheric composition. Example:
                 [["CO2", "CH4"], "CH4"]. Defaults to None.
@@ -2088,7 +2141,8 @@ class System:
             >>> parameter_space = {
             ...     'planet.atmosphere.temperature': {'min': 200, 'max': 400, 'n': 3},
             ...     'planet.atmosphere.composition.CH4': {
-            ...         'min': -10, 'max': -1, 'n': 10, 'distribution': 'linear'
+            ...         'min': -10, 'max': -1, 'n': 10, 'distribution': 'linear',
+            ...         'include_absence': True
             ...     }
             ... }
             >>> wn_grid = Physics.wavenumber_grid(1.0, 10.0, 1000)
@@ -2104,7 +2158,17 @@ class System:
         # Process parameter space to generate all parameter combinations
         param_values = {}
         for param_path, param_spec in parameter_space.items():
-            param_values[param_path] = generate_parameter_space_values(param_spec)
+            values = generate_parameter_space_values(param_spec)
+            # Incluir ausencia (None) para claves de composición si se solicita
+            if (isinstance(param_spec, dict)
+                and param_path.startswith('planet.atmosphere.composition.')
+                and param_spec.get('include_absence', False)):
+                if values is None:
+                    values = [None]
+                else:
+                    values = values if isinstance(values, list) else [values]
+                    values = values + [None]
+            param_values[param_path] = values
         param_names = list(param_values.keys())
         param_value_lists = [param_values[name] for name in param_names]
         all_combinations = list(itertools.product(*param_value_lists))
@@ -2137,9 +2201,13 @@ class System:
                     elif path_parts[j] == 'atmosphere':
                         current_obj = current_obj.atmosphere
                     elif path_parts[j] == 'composition':
-                        # Caso especial: actualizar directamente el diccionario de composición.
+                        # Clave especial: composición de un gas
                         gas_name = path_parts[j + 1]
-                        current_obj.composition[gas_name] = param_value
+                        # Si el valor indica ausencia, eliminar el gas; si no, añadir/actualizar.
+                        if param_value is None or (isinstance(param_value, float) and np.isnan(param_value)):
+                            current_obj.remove_gas(gas_name)
+                        else:
+                            current_obj.add_gas(gas_name, param_value)
                         break
                 else:
                     # Si no es el caso de composición, se establece el atributo.
