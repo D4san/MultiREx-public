@@ -11,5 +11,6 @@ requires = [
     "joblib",
     "astropy",
     "taurex-ggchem",
+    "requests",
 ]
 build-backend = "setuptools.build_meta"
