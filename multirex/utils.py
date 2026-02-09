@@ -220,7 +220,7 @@ def get_CIAs(pairs=None, atmosphere=None, path="", session=None):
     else:
         s = session
 
-    CIA_BASE = "https://hitran.org/data/CIA"
+    CIA_BASE = "https://hitran.org/data/CIA/main"
     saved_files = []
     for pair in normalized_pairs:
         if pair not in PAIR_TO_FILE:

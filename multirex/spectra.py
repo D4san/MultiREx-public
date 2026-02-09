@@ -344,52 +344,38 @@ generate_df_SNR_noise = Physics.generate_df_SNR_noise
 class Atmosphere:
     """Represents a plane parallel atmosphere with specified properties and composition.
     
-    This class allows you to define an atmosphere with properties like temperature
-    and pressure, as well as its chemical composition. The composition can be specified
-    manually molecule by molecule or by using an equilibrium chemistry model like GGChem.
+    This class defines an atmosphere with temperature and pressure bounds, its
+    chemical composition (manual or equilibrium), and optional Collision-Induced
+    Absorption (CIA) pairs. Manual compositions use log10 mixing ratios per gas,
+    and helper methods allow adding/removing gases. When using GGChem, manual
+    composition and fill gas are ignored and chemistry is controlled via
+    ``ggchem_params``.
     
     Attributes:
-        seed (int): Random seed for reproducibility.
-        temperature (float): Temperature of the atmosphere in Kelvin.
-        base_pressure (float): Base (bottom) pressure of the atmosphere in Pa.
+        seed (int): Random seed for reproducibility in range-based initialization.
+        temperature (float): Atmospheric temperature in Kelvin.
+        base_pressure (float): Bottom pressure of the atmosphere in Pa.
         top_pressure (float): Top pressure of the atmosphere in Pa.
-        composition (dict): Composition of the atmosphere with gases and their
-            mixing ratios in log10 values (e.g., {"H2O": -3, "CO2": -2}).
-            Only used if chemistry_type is 'manual'.
-        fill_gas (str or list): Gas or list of gases used as filler in the
-            atmosphere composition to ensure the total mixing ratio equals 1.
-            Only used if chemistry_type is 'manual'.
-        chemistry_type (str): Type of chemistry model to use ('manual' or 'ggchem').
-        ggchem_params (dict): Parameters for GGChem if chemistry_type is 'ggchem'.
-        original_params (dict): The original parameters used to initialize the
-            atmosphere, including any ranges specified for random generation.
+        chemistry_type (str): Chemistry model, either ``'manual'`` or ``'ggchem'``.
+        composition (dict): Manual composition mapping gas names to log10 mixing ratios,
+            e.g. ``{"H2O": -3, "CO2": -4}``. Only used when ``chemistry_type='manual'``.
+            Use ``add_gas``/``remove_gas`` to modify. Absent gases are simply not present
+            in this dictionary; downstream headers may reflect absence as ``NaN``.
+        fill_gas (str or list or None): Gas or list of gases that fill the remaining
+            fraction to sum to 1. Only used in manual chemistry. ``None`` means no filler.
+        cia (list[str] or None): List of CIA pairs like ``['H2-H2','H2-He']`` used to
+            enable CIA contributions in TauREx when data are available.
+        ggchem_params (dict): Parameters for the GGChem equilibrium chemistry when
+            ``chemistry_type='ggchem'`` (e.g., ``{'metallicity': 1.0, ...}``).
+        original_params (dict): Original input parameters (including ranges) captured
+            for reproducibility and later inspection.
     
-    Note:
-        The mixing ratios in the composition dictionary are in log10 scale.
-        For example, a value of -3 corresponds to a mixing ratio of 10^-3 = 0.001.
-    """
-    """Represents a plane parallel atmosphere with specified properties and composition.
-    
-    This class allows you to define an atmosphere with properties like temperature
-    and pressure, as well as its chemical composition. The composition is specified
-    as a dictionary of gases with their mixing ratios in log10 values. The class
-    supports both fixed values and random generation from ranges.
-    
-    Attributes:
-        seed (int): Random seed for reproducibility.
-        temperature (float): Temperature of the atmosphere in Kelvin.
-        base_pressure (float): Base (bottom) pressure of the atmosphere in Pa.
-        top_pressure (float): Top pressure of the atmosphere in Pa.
-        composition (dict): Composition of the atmosphere with gases and their
-            mixing ratios in log10 values (e.g., {"H2O": -3, "CO2": -2}).
-        fill_gas (str or list): Gas or list of gases used as filler in the
-            atmosphere composition to ensure the total mixing ratio equals 1.
-        original_params (dict): The original parameters used to initialize the
-            atmosphere, including any ranges specified for random generation.
-    
-    Note:
-        The mixing ratios in the composition dictionary are in log10 scale.
-        For example, a value of -3 corresponds to a mixing ratio of 10^-3 = 0.001.
+    Notes:
+        - Mixing ratios in ``composition`` are given in log10 scale. For example,
+          ``-3`` corresponds to a mixing ratio of ``1e-3``.
+        - In ``'ggchem'`` mode, manual ``composition`` and ``fill_gas`` are ignored.
+        - Validation checks ensure pressure bounds are positive and ordered, and manual
+          compositions can be checked to have total fraction within [0, 1].
     """
     def __init__(self, seed=None, temperature=None, 
                  base_pressure=None, top_pressure=None, 
@@ -1903,31 +1889,37 @@ class System:
         Returns:
             System: A freshly initialized System instance.
         """
-        # Para el planeta, se usan los parámetros originales (original_params)
+        # Use original parameters to allow reshuffling
         cloned_atmosphere = None
         if self.planet.atmosphere is not None:
             orig_atm = self.planet.atmosphere.original_params
             cloned_atmosphere = Atmosphere(
-                seed=orig_atm["seed"],
-                temperature=orig_atm["temperature"],
-                base_pressure=orig_atm["base_pressure"],
-                top_pressure=orig_atm["top_pressure"],
-                composition=orig_atm["composition"],
-                fill_gas=orig_atm["fill_gas"]
+                seed=orig_atm.get("seed"),
+                temperature=orig_atm.get("temperature"),
+                base_pressure=orig_atm.get("base_pressure"),
+                top_pressure=orig_atm.get("top_pressure"),
+                composition=orig_atm.get("composition"),
+                fill_gas=orig_atm.get("fill_gas"),
+                cia=orig_atm.get("cia"),  # Correctly pass CIA from original params
+                chemistry_type=orig_atm.get("chemistry_type", 'manual'),
+                ggchem_params=orig_atm.get("ggchem_params", {})
             )
+        
         cloned_planet = Planet(
-            seed=self.planet._original_params["seed"],
-            radius=self.planet._original_params["radius"],
-            mass=self.planet._original_params["mass"],
+            seed=self.planet.original_params["seed"],
+            radius=self.planet.original_params["radius"],
+            mass=self.planet.original_params["mass"],
             atmosphere=cloned_atmosphere
         )
+        
         cloned_star = Star(
-            seed=self.star._original_params["seed"],
-            temperature=self.star._original_params["temperature"],
-            radius=self.star._original_params["radius"],
-            mass=self.star._original_params["mass"],
+            seed=self.star.original_params["seed"],
+            temperature=self.star.original_params["temperature"],
+            radius=self.star.original_params["radius"],
+            mass=self.star.original_params["mass"],
             phoenix_path=self.star.phoenix_path if hasattr(self.star, 'phoenix_path') else None
         )
+        
         return System(cloned_planet, cloned_star, seed=self._seed, sma=self._sma)
 
     def explore_multiverse(self, wn_grid, snr=10, n_universes=1, labels=None, header=False,
@@ -2062,35 +2054,52 @@ class System:
         Returns:
             System: A clone of the current System with the same current parameter values.
         """
-        # Clone the atmosphere, if present
+        import copy
+
+        # Clone the atmosphere using current parameter values
         cloned_atmosphere = None
         if self.planet.atmosphere is not None:
+            current_atm = self.planet.atmosphere
+            
+            # Create independent copies of mutable objects to avoid shared references
+            comp_copy = current_atm.composition.copy() if current_atm.composition else {}
+            cia_copy = current_atm.cia.copy() if current_atm.cia else None
+            ggchem_copy = copy.deepcopy(current_atm.ggchem_params)
+
             cloned_atmosphere = Atmosphere(
-                seed=self.planet.atmosphere.seed,
-                temperature=self.planet.atmosphere.get_params()["temperature"],
-                base_pressure=self.planet.atmosphere.get_params()["base_pressure"],
-                top_pressure=self.planet.atmosphere.get_params()["top_pressure"],
-                composition=self.planet.atmosphere.get_params()["composition"],
-                fill_gas=self.planet.atmosphere.fill_gas
+                seed=current_atm.seed,
+                temperature=current_atm.temperature,
+                base_pressure=current_atm.base_pressure,
+                top_pressure=current_atm.top_pressure,
+                composition=comp_copy,
+                fill_gas=current_atm.fill_gas,
+                cia=cia_copy,
+                chemistry_type=current_atm.chemistry_type,
+                ggchem_params=ggchem_copy
             )
-        # Clone the planet using its original parameters
+            
+        # Clone the planet using its current parameter values
+        p_params = self.planet.get_params()
         cloned_planet = Planet(
             seed=self.planet.seed,
-            radius=self.planet.get_params()["p_radius"],
-            mass=self.planet.get_params()["p_mass"],
+            radius=p_params["p_radius"],
+            mass=p_params["p_mass"],
             atmosphere=cloned_atmosphere
         )
-        # Clone the star using its original parameters
-                # Clone the star using its original parameters
+        
+        # Clone the star using its current parameter values
+        s_params = self.star.get_params()
         cloned_star = Star(
             seed=self.star.seed,
-            temperature=self.star.get_params()["s temperature"],
-            radius=self.star.get_params()["s radius"],
-            mass=self.star.get_params()["s mass"],
+            temperature=s_params["s temperature"],
+            radius=s_params["s radius"],
+            mass=s_params["s mass"],
         )
+        
         if getattr(self.star, "phoenix", False):
             cloned_star.phoenix = True
             cloned_star.phoenix_path = self.star.phoenix_path
+            
         return System(cloned_planet, cloned_star, seed=self._seed, sma=self._sma)
 
     def explore_parameter_space(self, wn_grid, parameter_space, snr=10, labels=None,
@@ -2100,186 +2109,343 @@ class System:
         Explore a parameter space by systematically varying parameters across specified
         ranges.
 
-        This method allows for structured parameter space exploration by generating
+        This method performs a structured parameter-space exploration by generating
         spectra for all combinations of parameter values specified in the
-        parameter_space dictionary.
+        ``parameter_space`` dictionary.
 
-        Args:
-            wn_grid (array): Wave number grid.
-            parameter_space (dict): Dictionary specifying the parameter space to explore.
-                Each key should be a parameter path (e.g., 'planet.atmosphere.temperature')
-                and each value should be one of:
-                    - A single value
-                    - A list of values
-                    - A dict with keys 'min', 'max', 'n', and optionally 'distribution'
-                      ('linear' or 'log'). For composition keys (e.g.,
-                      'planet.atmosphere.composition.CO2'), you may also set
-                      'include_absence': True to include the case where the gas is
-                      removed from the atmosphere. In that case, the header will contain
-                      'atm CO2' with NaN when the gas is absent.
-            snr (float, optional): Signal-to-noise ratio. Defaults to 10.
-            labels (list, optional): Labels for atmospheric composition. Example:
-                [["CO2", "CH4"], "CH4"]. Defaults to None.
-            header (bool, optional): Whether to include header information in the saved
-                files. Defaults to False.
-            n_observations (int, optional): Number of observations to generate.
-                Defaults to 1.
-            spectra (bool, optional): Whether to save the spectra. Defaults to True.
-            observations (bool, optional): Whether to save the observations. Defaults to True.
-            path (str, optional): Path to save the files. If not provided, files are not saved.
-            n_jobs (int, optional): Number of jobs to run in parallel. Defaults to 1,
-                meaning sequential execution. Use -1 to utilize all available cores.
+        Each combination is applied to a "frozen" clone of the current system
+        (``clone_frozen``), so every grid point starts from the same baseline
+        configuration and only the requested parameters are changed.
 
-        Returns:
-            dict: Dictionary containing 'spectra' and/or 'observations' DataFrames
-                depending on the arguments.
-                - spectra (DataFrame): Spectra of the parameter space exploration.
-                - observations (DataFrame): Observations of the parameter space exploration.
+        Parameters
+        ----------
+        wn_grid : array-like
+            Wavenumber grid (in cm^-1) on which the spectrum is computed.
+        parameter_space : dict
+            Dictionary specifying the parameter space to explore.
 
-        Examples:
-            >>> system = System(planet, star, sma=1.0)
-            >>> parameter_space = {
-            ...     'planet.atmosphere.temperature': {'min': 200, 'max': 400, 'n': 3},
-            ...     'planet.atmosphere.composition.CH4': {
-            ...         'min': -10, 'max': -1, 'n': 10, 'distribution': 'linear',
-            ...         'include_absence': True
-            ...     }
-            ... }
-            >>> wn_grid = Physics.wavenumber_grid(1.0, 10.0, 1000)
-            >>> results = system.explore_parameter_space(wn_grid, parameter_space, snr=10)
+            Each key must be a parameter path, for example:
+            ``'planet.atmosphere.temperature'`` or
+            ``'planet.atmosphere.composition.NH3'``.
+
+            Each value can be:
+                * A single scalar value (e.g. 300.0)
+                * A list of values (e.g. [250.0, 300.0, 350.0])
+                * A dict with keys ``'min'``, ``'max'``, ``'n'`` and optionally
+                  ``'distribution'`` = ``'linear'`` or ``'log'``; for example::
+
+                      {
+                          "min": -8,
+                          "max": -1,
+                          "n": 8,
+                          "distribution": "linear"
+                      }
+
+              For composition keys (e.g.
+              ``'planet.atmosphere.composition.CO2'``), you may additionally set
+              ``'include_absence': True`` to include the case where that gas is
+              removed from the atmosphere. In that case, the header will contain
+              ``'atm CO2' = NaN`` when the gas is logically absent.
+
+        snr : float, optional
+            Signal-to-noise ratio used for generating synthetic observations.
+            Default is 10.
+        labels : list, optional
+            List of labels for atmospheric composition. Example:
+            ``[["CO2", "CH4"], "CH4"]``. Only gases that are active in the
+            TauREx chemistry and not logically absent are kept.
+        header : bool, optional
+            If True, include system parameters in the output DataFrame.
+            Default is False.
+        n_observations : int, optional
+            Number of noisy observations to generate per spectrum.
+            Default is 1.
+        spectra : bool, optional
+            If True, return the spectra DataFrame. Default is True.
+        observations : bool, optional
+            If True, return the observations DataFrame (spectra with noise).
+            Default is True.
+        path : str, optional
+            Directory path where Parquet files will be saved. If None, no files
+            are written. Default is None.
+        n_jobs : int, optional
+            Number of parallel jobs (joblib). Default is 1 (sequential).
+            Use -1 to use all available cores.
+
+        Returns
+        -------
+        dict or pandas.DataFrame
+            If ``observations=True`` and ``spectra=True``:
+                A dict with keys:
+                    * ``"spectra"`` : DataFrame with noiseless spectra.
+                    * ``"observations"`` : DataFrame with noisy observations.
+
+            If only ``observations=True``:
+                DataFrame of observations.
+
+            If only ``spectra=True``:
+                DataFrame of spectra.
+
+        Notes
+        -----
+        * For composition parameters ``planet.atmosphere.composition.X``:
+          - If the value is a log10 mixing ratio (e.g. -3), the gas is added or
+            updated with that mixing ratio.
+          - If the value is ``None`` or NaN, that gas is removed from the
+            atmosphere.
+
+        * If after applying the combination the atmosphere has no gases,
+          a set of "base" gases is added at a very small epsilon value in
+          log10 (e.g. -15.0) to avoid an empty atmosphere in TauREx. Those
+          gases are marked as "logically absent" in the header (NaN) and are
+          also excluded from the labels.
         """
-        # Validate the transmission model
+        # ------------------------------------------------------------------
+        # 0. Basic validation
+        # ------------------------------------------------------------------
         if self._transmission is None:
             self.make_tm()
 
         if not any([spectra, observations]):
             raise ValueError("At least one of 'spectra' or 'observations' must be True.")
 
-        # Process parameter space to generate all parameter combinations
+        # ------------------------------------------------------------------
+        # 1. Process parameter_space into lists of values
+        # ------------------------------------------------------------------
         param_values = {}
+
         for param_path, param_spec in parameter_space.items():
             values = generate_parameter_space_values(param_spec)
-            # Incluir ausencia (None) para claves de composición si se solicita
+
+            if values is None:
+                values = []
+            elif isinstance(values, np.ndarray):
+                values = values.tolist()
+            elif not isinstance(values, list):
+                values = [values]
+
             if (isinstance(param_spec, dict)
-                and param_path.startswith('planet.atmosphere.composition.')
+                and 'composition' in param_path
                 and param_spec.get('include_absence', False)):
-                if values is None:
-                    values = [None]
-                else:
-                    values = values if isinstance(values, list) else [values]
-                    values = values + [None]
+                if None not in values:
+                    values.append(None)
+
+            if len(values) == 0:
+                raise ValueError(
+                    f"Parameter '{param_path}' produced an empty list of values."
+                )
+
             param_values[param_path] = values
+
         param_names = list(param_values.keys())
         param_value_lists = [param_values[name] for name in param_names]
         all_combinations = list(itertools.product(*param_value_lists))
 
+        # ------------------------------------------------------------------
+        # Helper interno para inicializar paths TauREx una sola vez por worker
+        # ------------------------------------------------------------------
+        cache_paths_initialized = False
+
+        def _ensure_taurex_paths():
+            """
+            Make sure CIA and opacity paths are correctly set for TauREx.
+
+            This is meant to be called from each worker process. It will run the
+            initialization logic only once per process, thanks to the local flag
+            `cache_paths_initialized`.
+            """
+            nonlocal cache_paths_initialized
+            if cache_paths_initialized:
+                return
+
+            try:
+                from taurex.cache import CIACache, OpacityCache
+                import os
+
+                # Fast check: Local paths relative to execution script
+                # This fixes the 'cia not found' error in joblib workers
+
+                # 1. Fix CIA Path
+                if os.path.isdir('CIA'):
+                    target_cia = os.path.abspath('CIA')
+                    # Only set if different (Lazy Loading for speed)
+                    if getattr(CIACache(), '_cia_path', None) != target_cia:
+                        CIACache().set_cia_path(target_cia)
+
+                # 2. Fix Opacity Path (Prioritize 'opacidades-todas' then 'xsec')
+                target_xsec = None
+                if os.path.isdir('opacidades-todas'):
+                    target_xsec = os.path.abspath('opacidades-todas')
+                elif os.path.isdir('xsec'):
+                    target_xsec = os.path.abspath('xsec')
+
+                if target_xsec:
+                    if getattr(OpacityCache(), '_opacity_path', None) != target_xsec:
+                        OpacityCache().set_opacity_path(target_xsec)
+
+                # DEBUG opcional: descomenta si quieres ver cuántas veces se llama por PID
+                import os as _os
+                print(f"[DEBUG] Inicializando paths TauREx en PID={_os.getpid()}")
+
+            except Exception:
+                # Si algo falla no queremos romper el worker; simplemente seguimos
+                pass
+            finally:
+                cache_paths_initialized = True
+
+        # ------------------------------------------------------------------
+        # 2. Internal function to process a single combination
+        # ------------------------------------------------------------------
         def process_combination(combination):
             """
-            Process a single combination of parameter values.
-
-            This function clones the current system using the clone method,
-            sets the parameters based on the given combination, generates the transmission
-            model and spectrum, and returns the header and the spectrum DataFrame.
-
-            Args:
-                combination (tuple): A tuple containing one value per parameter.
-
-            Returns:
-                tuple: A tuple containing the header (dict) and the spectrum DataFrame.
+            Process a single combination. 
+            Contains minimal logic to fix path issues in parallel workers.
             """
-            # En lugar de deepcopy, se usa el método clone para crear una nueva instancia.
+            # ---------------------- FIX PATHS (UNA VEZ POR PROCESO) ---------
+            _ensure_taurex_paths()
+            # -----------------------------------------------------------------
+
             system_copy = self.clone_frozen()
-            for i, param_path in enumerate(param_names):
-                param_value = combination[i]
+            removed_gases = set()
+            epsilon_log10 = -15.0
+            local_header = {} if header else None
+
+            for param_path, param_value in zip(param_names, combination):
                 path_parts = param_path.split('.')
                 current_obj = system_copy
+
                 for j in range(len(path_parts) - 1):
-                    if path_parts[j] == 'planet':
+                    token = path_parts[j]
+                    if token == 'planet':
                         current_obj = current_obj.planet
-                    elif path_parts[j] == 'star':
+                    elif token == 'star':
                         current_obj = current_obj.star
-                    elif path_parts[j] == 'atmosphere':
+                    elif token == 'atmosphere':
                         current_obj = current_obj.atmosphere
-                    elif path_parts[j] == 'composition':
-                        # Clave especial: composición de un gas
+                    elif token == 'composition':
                         gas_name = path_parts[j + 1]
-                        # Si el valor indica ausencia, eliminar el gas; si no, añadir/actualizar.
-                        if param_value is None or (isinstance(param_value, float) and np.isnan(param_value)):
+                        is_nan = False
+                        if isinstance(param_value, float):
+                            is_nan = np.isnan(param_value)
+
+                        if param_value is None or is_nan:
                             current_obj.remove_gas(gas_name)
+                            removed_gases.add(gas_name)
+                            if header:
+                                local_header[f"atm {gas_name}"] = np.nan
                         else:
                             current_obj.add_gas(gas_name, param_value)
+                            if header:
+                                local_header[f"atm {gas_name}"] = param_value
                         break
                 else:
-                    # Si no es el caso de composición, se establece el atributo.
                     attr_name = f"_{path_parts[-1]}"
                     setattr(current_obj, attr_name, param_value)
+                    if header:
+                        local_header[param_path] = param_value
+
+            # Ensure atmosphere is not empty
+            atm = system_copy.planet.atmosphere
+            if len(atm.composition) == 0:
+                base_gases = list(removed_gases)
+                if not base_gases:
+                    try:
+                        base_gases = list(self.transmission.chemistry.gases)
+                    except Exception:
+                        base_gases = []
+                if not base_gases:
+                    fill = atm.fill_gas
+                    if isinstance(fill, list):
+                        base_gases = fill
+                    elif isinstance(fill, str) and fill:
+                        base_gases = [fill]
+                    else:
+                        base_gases = ["H2"]
+
+                for g in base_gases:
+                    atm.add_gas(g, epsilon_log10)
+                logically_absent = set(base_gases) | removed_gases
+            else:
+                logically_absent = removed_gases
+
             system_copy.make_tm()
             bin_wn, bin_rprs = system_copy.generate_spectrum(wn_grid)
             columns = list(10000 / np.array(bin_wn))
             spec_df = pd.DataFrame(bin_rprs.reshape(1, -1), columns=columns)
+
             current_header = system_copy.get_params() if header else {}
-            if labels is not None:
-                valid_labels = []
-                for label in labels:
-                    if isinstance(label, str) and label in system_copy.transmission.chemistry.gases:
-                        valid_labels.append(label)
-                    elif isinstance(label, list):
-                        valid_sublabels = [
-                            sublabel for sublabel in label
-                            if sublabel in system_copy.transmission.chemistry.gases
-                        ]
-                        if valid_sublabels:
-                            valid_labels.append(valid_sublabels)
-                current_header["label"] = valid_labels if valid_labels else []
+            if header:
+                if local_header:
+                    current_header.update(local_header)
+                for g in logically_absent:
+                    current_header[f"atm {g}"] = np.nan
+
+                if labels is not None:
+                    valid_labels = []
+                    current_gases = getattr(system_copy.transmission.chemistry, 'gases', [])
+                    for label in labels:
+                        if isinstance(label, str):
+                            if label in current_gases and label not in logically_absent:
+                                valid_labels.append(label)
+                        elif isinstance(label, list):
+                            valid_sublabels = [
+                                s for s in label
+                                if s in current_gases and s not in logically_absent
+                            ]
+                            if valid_sublabels:
+                                valid_labels.append(valid_sublabels)
+                    current_header["label"] = valid_labels if valid_labels else []
+
             return current_header, spec_df
 
-
-        # Process all combinations either sequentially or in parallel
+        # ------------------------------------------------------------------
+        # 3. Execution
+        # ------------------------------------------------------------------
         if n_jobs == 1:
-            results = [process_combination(comb) for comb in all_combinations]
+            results = [process_combination(comb) for comb in tqdm(all_combinations)]
         else:
+            from joblib import Parallel, delayed
+            # We removed pre_dispatch to allow maximum throughput as per your request
             results = Parallel(n_jobs=n_jobs)(
-                delayed(process_combination)(comb) for comb in all_combinations
+                delayed(process_combination)(comb) for comb in tqdm(all_combinations)
             )
 
-        # Separate headers and spectra from the results
+        # ------------------------------------------------------------------
+        # 4. Aggregation
+        # ------------------------------------------------------------------
         header_list = [res[0] for res in results]
         spectra_list = [res[1] for res in results]
+
         all_spectra_df = pd.concat(spectra_list, axis=0, ignore_index=True)
         all_header_df = pd.DataFrame(header_list)
-
-        # Concatenate the headers and spectra, and assign special attributes
         final_spectra_df = pd.concat([all_header_df, all_spectra_df], axis=1)
+
         warnings.filterwarnings("ignore")
         final_spectra_df.data = final_spectra_df.iloc[:, -all_spectra_df.shape[1]:]
         final_spectra_df.params = final_spectra_df.iloc[:, :all_header_df.shape[1]]
         warnings.filterwarnings("default")
 
-        # Generate observations if requested
         if observations:
             print(f"Generating observations for {len(all_combinations)} spectra...")
-            all_observations_df = generate_df_SNR_noise(final_spectra_df,
-                                                        n_observations, snr)
+            all_observations_df = generate_df_SNR_noise(final_spectra_df, n_observations, snr)
+
             if path is not None:
-                # Save the observations if a path is provided
                 all_observations_df_copy = all_observations_df.copy()
-                all_observations_df_copy.columns = (
-                    all_observations_df_copy.columns.astype(str)
-                )
+                all_observations_df_copy.columns = all_observations_df_copy.columns.astype(str)
                 all_observations_df_copy.to_parquet(
                     f'{path}/multirex_parameter_space_observations.parquet'
                 )
+
+            result = {"observations": all_observations_df}
             if spectra:
+                result["spectra"] = final_spectra_df
                 if path is not None:
                     final_spectra_df_copy = final_spectra_df.copy()
                     final_spectra_df_copy.columns = final_spectra_df_copy.columns.astype(str)
                     final_spectra_df_copy.to_parquet(
                         f'{path}/multirex_parameter_space_spectra.parquet'
                     )
-                return {"spectra": final_spectra_df,
-                        "observations": all_observations_df}
-            else:
-                return all_observations_df
+            return result if spectra else all_observations_df
         else:
             if path is not None:
                 final_spectra_df_copy = final_spectra_df.copy()
@@ -2288,7 +2454,6 @@ class System:
                     f'{path}/multirex_parameter_space_spectra.parquet'
                 )
             return final_spectra_df
-
 
     def __str__(self):
 
