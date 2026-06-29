@@ -37,7 +37,7 @@ $ sudo pip install "multirex[ggchem]"
 ```
 as usual this command will install all dependencies and download some useful data, scripts and constants.
 
-> **NOTE**: If you don't have access to `sudo`, you can install `MultiREx` in your local environmen (usually at `~/.local/`). In that case you need to add to your `PATH` environmental variable the location of the local python installation. For that purpose add to the configuration files `~/.bashrc` or `~/.bash_profile`, the line `export PATH=$HOME/.local/bin:$PATH`
+> **NOTE**: If you don't have access to `sudo`, you can install `MultiREx` in your local environment (usually at `~/.local/`). In that case you need to add to your `PATH` environmental variable the location of the local python installation. For that purpose add to the configuration files `~/.bashrc` or `~/.bash_profile`, the line `export PATH=$HOME/.local/bin:$PATH`
 
 If you are a developer or want to work directly with the package sources, clone `MultiREx` from the `GitHub` repository:
 
