@@ -25,6 +25,14 @@ MultiREx - Planetary Transmission Spectra Generator
    :target: http://arxiv.org/abs/2407.19167
    :alt: arXiv link
 
+.. image:: https://img.shields.io/badge/GitHub-Repository-black?logo=github
+   :target: https://github.com/D4san/MultiREx-public
+   :alt: GitHub Repository
+
+.. image:: https://readthedocs.org/projects/multirex-documentation/badge/?version=latest
+   :target: https://multirex-documentation.readthedocs.io/en/latest/
+   :alt: Documentation Status
+
 MultiREx is a Python library designed for generating synthetic exoplanet
 transmission spectra. This tool extends the functionalities of the
 `TauREx <https://taurex3.readthedocs.io/en/latest/index.html>`_
@@ -36,10 +44,12 @@ can also be used for other purposes.
 For the science behind the model, please refer to the following paper:
 
 David S. Duque-Castaño, Jorge I. Zuluaga, and Lauren Flor-Torres (2024),
-**Machine-assisted classification of potential biosignatures in earth-like
-exoplanets using low signal-to-noise ratio transmission spectra**, submitted
-to MNRAS,
-`arXiv:2407.19167 <https://arxiv.org/abs/2407.19167>`__.
+**Machine-assisted classification of potential biosignatures in Earth-like
+exoplanets using low signal-to-noise ratio transmission spectra**,
+`MNRAS <https://academic.oup.com/mnras/article/539/2/1528/8109635>`__.
+
+The notebooks used to develop this work are available in the
+`examples/papers/DZF-MLBiosignatureClassification <https://github.com/D4san/MultiREx-public/tree/main/examples/papers/DZF-MLBiosignatureClassification>`_ directory.
 
 .. toctree::
    :maxdepth: 2

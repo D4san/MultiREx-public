@@ -30,6 +30,14 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
+html_context = {
+    "display_github": True,
+    "github_user": "D4san",
+    "github_repo": "MultiREx-public",
+    "github_version": "main",
+    "conf_py_path": "/docs/",
+}
+
 ## -- Css customization ---------------------------------------------------
 def setup(app):
     app.add_css_file("custom.css")
