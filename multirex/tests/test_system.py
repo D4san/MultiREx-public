@@ -76,7 +76,7 @@ def test_generate_spectrum_with_ggchem():
     system = create_sample_system_ggchem()
     system.make_tm()
     assert system.transmission is not None, "Transmission model should be created before generating spectrum."
-    wn_grid = Physics.wavenumber_grid(min_wn=300, max_wn=3000, npoints=50)
+    wn_grid = Physics.wavenumber_grid(wl_min=10000/3000, wl_max=10000/300, resolution=50)
     bin_wn, bin_rprs = system.generate_spectrum(wn_grid)
     assert isinstance(bin_wn, np.ndarray), "Wavenumber grid should be a numpy array."
     assert len(bin_wn) > 0, "Wavenumber grid should not be empty."
@@ -84,3 +84,41 @@ def test_generate_spectrum_with_ggchem():
     assert len(bin_rprs) > 0, "R/Rs array should not be empty."
     assert len(bin_wn) == len(bin_rprs), "Wavenumber and R/Rs arrays must have the same length."
     assert not np.isnan(bin_rprs).any(), "Spectrum should not contain NaN values."
+
+def create_sample_system_cia():
+    atm = Atmosphere(seed=200, temperature=1000, base_pressure=1e5, top_pressure=1e0,
+                     composition={"H2": -0.15, "H2O": -3.0}, fill_gas="He", cia=["H2-H2", "H2-He"])
+    planet = Planet(seed=201, radius=1.0, mass=1.0, atmosphere=atm)
+    star = Star(seed=202, temperature=5000, radius=1.0, mass=1.0)
+    system = System(planet, star, seed=203, sma=0.05)
+    return system
+
+def test_system_make_tm_with_cia():
+    """Test that make_tm() runs successfully with CIA pairs."""
+    system = create_sample_system_cia()
+    system.make_tm()
+    assert system.transmission is not None
+
+from unittest.mock import patch
+from taurex.cache import CIACache
+from taurex.cia.cia import CIA
+import numpy as np
+
+class DummyCIA(CIA):
+    def __init__(self, pair_name):
+        super().__init__("Dummy", pair_name)
+        self._pair_name = pair_name
+    @property
+    def pairName(self): return self._pair_name
+    def cia(self, T, wngrid): return np.zeros(len(wngrid))
+
+@patch.object(CIACache, '__getitem__', side_effect=lambda self, key: DummyCIA(key), autospec=True)
+def test_generate_spectrum_with_cia(mock_getitem):
+    """Test that a spectrum can be generated with CIA pairs."""
+    system = create_sample_system_cia()
+    system.make_tm()
+    wn_grid = Physics.wavenumber_grid(wl_min=10000/3000, wl_max=10000/300, resolution=50)
+    bin_wn, bin_rprs = system.generate_spectrum(wn_grid)
+    assert len(bin_wn) > 0
+    assert len(bin_wn) == len(bin_rprs)
+    assert not np.isnan(bin_rprs).any()

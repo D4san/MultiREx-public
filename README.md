@@ -31,6 +31,10 @@ For the science behind the model, please refer to the following paper:
 ```bash
 $ sudo pip install multirex
 ```
+For advanced features like equilibrium chemistry (`taurex_ggchem`), you can install the optional dependencies:
+```bash
+$ sudo pip install "multirex[ggchem]"
+```
 as usual this command will install all dependencies and download some useful data, scripts and constants.
 
 > **NOTE**: If you don't have access to `sudo`, you can install `MultiREx` in your local environmen (usually at `~/.local/`). In that case you need to add to your `PATH` environmental variable the location of the local python installation. For that purpose add to the configuration files `~/.bashrc` or `~/.bash_profile`, the line `export PATH=$HOME/.local/bin:$PATH`
@@ -168,7 +172,7 @@ In order to illustrate the basic and advanced functionalities of `MultiREx` we p
 
 - **Planetary System Assembly**: Facilitates the combination of different planets, stars, and atmospheres to explore various stellar system configurations.
 
-- **Customizable Atmospheres**: Allows the addition and configuration of varied atmospheric compositions for the planets.
+- **Customizable Atmospheres**: Allows the addition and configuration of varied atmospheric compositions for the planets, including manual mix-ratios, equilibrium chemistry (`chemistry_type='ggchem'`), and basic Collision-Induced Absorption. Note that manual abundances must be passed as `log10(mixing_ratio)`, not as linear fractions.
 
 - **Synthetic Spectrum Generation**: Produces realistic spectra based on the attributes and conditions of planetary systems.
 
@@ -186,7 +190,7 @@ It is necessary to load the opacities or cross-sections of the molecules used in
 - [ExoMol](https://www.exomol.com/data/search/)
 - [ExoTransmit](https://github.com/elizakempton/Exo_Transmit/tree/master/Opac)
 
-We have pre-downloaded some of these molecules, and others can be downloaded using the command `multirex.Util.get_gases()`
+We have pre-downloaded some of these molecules, and others can be downloaded using the command `multirex.Util.get_gases()`. Similarly, Collision-Induced Absorption (CIA) data can be downloaded and configured using `multirex.Util.get_CIAs()`.
 
 ## What's new
 

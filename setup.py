@@ -45,7 +45,7 @@ setuptools.setup(
     # ENTRY POINTS
     # ######################################################################
     entry_points={
-        'console_scripts': ['install=pryngles.install:main'],
+        # 'console_scripts': ['install=pryngles.install:main'], # Removed pryngles legacy entry point
     },
 
     # ######################################################################
@@ -59,7 +59,7 @@ setuptools.setup(
     # ######################################################################
     install_requires=[
         'numpy',
-        'taurex==3.1.14',
+        'taurex>=3.1.14',
         'matplotlib',
         'tqdm',
         'pandas',
@@ -67,9 +67,12 @@ setuptools.setup(
         'pyarrow',
         'joblib',
         'astropy',
-        'taurex-ggchem',
         'requests'
     ],
+    
+    extras_require={
+        'ggchem': ['taurex-ggchem'],
+    },
 
     # ######################################################################
     # OPTIONS

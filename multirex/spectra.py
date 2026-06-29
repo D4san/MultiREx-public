@@ -1809,6 +1809,12 @@ class System:
   
         return fig, ax
 
+    def plot_mixing_ratios(self, list_gases=None, showfig=True,  min_mix=None):
+        """
+        Alias for plot_mixing_ratio to provide backward compatibility.
+        """
+        return self.plot_mixing_ratio(list_gases=list_gases, showfig=showfig, min_mix=min_mix)
+
     def plot_mixing_ratio(self, list_gases=None, showfig=True,  min_mix=None):
         """
         Plot mixing ratio profiles.
@@ -2282,10 +2288,6 @@ class System:
                 if target_xsec:
                     if getattr(OpacityCache(), '_opacity_path', None) != target_xsec:
                         OpacityCache().set_opacity_path(target_xsec)
-
-                # DEBUG opcional: descomenta si quieres ver cuántas veces se llama por PID
-                import os as _os
-                print(f"[DEBUG] Inicializando paths TauREx en PID={_os.getpid()}")
 
             except Exception:
                 # Si algo falla no queremos romper el worker; simplemente seguimos

@@ -2,15 +2,14 @@
 requires = [
     "setuptools",
     "numpy",
-    "taurex==3.1.14",
+    "taurex>=3.1.14",
     "matplotlib",
     "tqdm",
     "pandas",
+    "requests",
     "gdown",
     "pyarrow",
     "joblib",
-    "astropy",
-    "taurex-ggchem",
-    "requests",
+    "astropy"
 ]
 build-backend = "setuptools.build_meta"
