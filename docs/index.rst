@@ -43,11 +43,22 @@ to MNRAS,
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting Started:
 
    notebooks/quickstart
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials & Examples:
+
    notebooks/parameter_exploration
-   modules   
+   notebooks/chemical_equilibrium
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference:
+
+   modules
    
 
 Key Features of MultiREx
