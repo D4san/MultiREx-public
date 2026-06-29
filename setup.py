@@ -51,8 +51,8 @@ setuptools.setup(
     # ######################################################################
     # TESTS
     # ######################################################################
-    test_suite='nose.collector',
-    tests_require=['nose'],
+    # Tests are run using pytest (see .github/workflows/tests.yml)
+
 
     # ######################################################################
     # DEPENDENCIES

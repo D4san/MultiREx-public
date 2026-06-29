@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # We install the ggchem extra here because Ubuntu runners have gfortran pre-installed,
+        # allowing us to test both the core library and the equilibrium chemistry extensions.
+        pip install ".[ggchem]"
+        pip install pytest
+        
+    - name: Run tests with Pytest
+      run: |
+        python -m pytest
