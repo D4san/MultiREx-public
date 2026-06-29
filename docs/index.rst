@@ -21,9 +21,9 @@ MultiREx - Planetary Transmission Spectra Generator
    :target: https://pypi.org/project/multirex/
    :alt: Python versions
 
-.. image:: http://img.shields.io/badge/arXiv-2407.19167-orange.svg?style=flat
-   :target: http://arxiv.org/abs/2407.19167
-   :alt: arXiv link
+.. image:: https://img.shields.io/badge/Article-MNRAS-blue.svg?style=flat
+   :target: https://academic.oup.com/mnras/article/539/2/1528/8109635
+   :alt: MNRAS Article
 
 .. image:: https://img.shields.io/badge/GitHub-Repository-black?logo=github
    :target: https://github.com/D4san/MultiREx-public

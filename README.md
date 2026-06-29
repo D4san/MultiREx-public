@@ -7,7 +7,7 @@
 [![license](https://img.shields.io/pypi/l/multirex)](https://pypi.org/project/multirex/)
 [![implementation](https://img.shields.io/pypi/implementation/multirex)](https://pypi.org/project/multirex/)
 [![pythonver](https://img.shields.io/pypi/pyversions/multirex)](https://pypi.org/project/multirex/)
-[![arXiv](http://img.shields.io/badge/arXiv-2407.19167-orange.svg?style=flat)](http://arxiv.org/abs/2407.19167)
+[![Article](https://img.shields.io/badge/Article-MNRAS-blue.svg?style=flat)](https://academic.oup.com/mnras/article/539/2/1528/8109635)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://multirex-documentation.readthedocs.io/en/latest/)
 <!-- 
 [![ascl](https://img.shields.io/badge/ascl-2205.016-blue.svg?colorB=262255)](https://ascl.net/2205.016)
